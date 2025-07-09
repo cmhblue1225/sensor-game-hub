@@ -377,8 +377,12 @@
     
     <!-- Three.js 라이브러리 -->
     <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-    <!-- CANNON.js 물리 엔진 (로컬 파일) -->
-    <script src="lib/cannon-es.min.js"></script>
+    <!-- CANNON-ES 물리 엔진 (로컬 파일) -->
+    <script type="module">
+        import * as CANNON from './lib/cannon-es.js';
+        window.CANNON = CANNON;
+        console.log('✅ CANNON-ES 로딩 완료:', CANNON);
+    </script>
     
     <!-- SDK 로드 (필수) -->
     <script src="../../sdk/sensor-game-sdk.js"></script>

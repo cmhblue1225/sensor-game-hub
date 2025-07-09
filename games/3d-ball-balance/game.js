@@ -11,11 +11,11 @@ class BallBalanceAdventure extends SensorGameSDK {
             gameName: '3D 볼 밸런스 어드벤처',
             requestedSensors: ['orientation', 'accelerometer'],
             sensorSensitivity: {
-                orientation: 1.2,
-                accelerometer: 0.8
+                orientation: 0.8,
+                accelerometer: 0.5
             },
-            smoothingFactor: 4,
-            deadzone: 0.08
+            smoothingFactor: 6,
+            deadzone: 0.1
         });
         
         // 게임 상태 초기화
@@ -82,6 +82,16 @@ class BallBalanceAdventure extends SensorGameSDK {
             visual: {}
         };
         
+        // 상태 관리 플래그
+        this.isProcessingBallLoss = false;
+        
+        // 벽 메쉬 및 바디 배열
+        this.wallMeshes = [];
+        this.wallBodies = [];
+        
+        // 충돌 소리 쿨다운
+        this.lastCollisionSoundTime = 0;
+        
         // 게임 초기화
         this.initializeGame();
     }
@@ -99,35 +109,30 @@ class BallBalanceAdventure extends SensorGameSDK {
             // 라이브러리 로딩 대기
             await this.waitForLibraries();
             
-            // Three.js 및 물리 엔진 초기화
-            await this.initializeEngine();
-            
-            // 오디오 시스템 초기화
-            await this.initializeAudio();
+            // Three.js 및 CANNON-ES 초기화
+            this.initializeThreeJS();
+            this.initializePhysics();
+            this.initializeAudio();
+            this.initializeMaterials();
+            this.initializeParticles();
             
             // 첫 번째 레벨 로드
-            await this.loadLevel(1);
+            this.loadLevel(1);
             
-            // 센서 콜백 등록
-            this.setupSensorCallbacks();
-            
-            // 키보드 컨트롤 설정
-            this.setupKeyboardControls();
-            
-            // UI 업데이트
-            this.updateUI();
+            // 이벤트 리스너 등록
+            this.setupEventListeners();
             
             // 게임 루프 시작
             this.startGameLoop();
             
             // 로딩 화면 숨기기
-            setTimeout(() => this.showLoadingScreen(false), 1000);
+            this.showLoadingScreen(false);
             
             console.log('✅ 게임 초기화 완료');
             
         } catch (error) {
             console.error('❌ 게임 초기화 실패:', error);
-            this.showErrorMessage('게임을 로드할 수 없습니다: ' + error.message);
+            this.showError('게임 초기화에 실패했습니다: ' + error.message);
         }
     }
     
@@ -135,83 +140,57 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 라이브러리 로딩 대기
      */
     async waitForLibraries() {
-        const maxAttempts = 100; // 10초 대기
-        let attempts = 0;
+        console.log('📚 라이브러리 로딩 대기 중...');
         
-        console.log('🔄 라이브러리 로딩 대기 중...');
+        // THREE.js 로딩 대기
+        await new Promise((resolve) => {
+            const checkTHREE = () => {
+                if (typeof THREE !== 'undefined') {
+                    console.log('✅ THREE.js 로딩 완료');
+                    resolve();
+                } else {
+                    setTimeout(checkTHREE, 100);
+                }
+            };
+            checkTHREE();
+        });
         
-        while (attempts < maxAttempts) {
-            const threeLoaded = typeof THREE !== 'undefined';
-            const cannonLoaded = typeof CANNON !== 'undefined';
-            
-            console.log(`📚 THREE.js: ${threeLoaded ? '✅' : '❌'}, CANNON: ${cannonLoaded ? '✅' : '❌'}`);
-            
-            if (threeLoaded && cannonLoaded) {
-                console.log('✅ 필수 라이브러리 로딩 완료');
-                return;
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-        }
-        
-        // 최종 확인
-        if (typeof THREE === 'undefined') {
-            throw new Error('THREE.js 라이브러리 로딩 실패 - 네트워크 연결을 확인하세요');
-        }
-        
-        if (typeof CANNON === 'undefined') {
-            throw new Error('CANNON.js 라이브러리 로딩 실패 - 로컬 파일을 확인하세요');
-        }
+        // CANNON-ES 로딩 대기
+        await new Promise((resolve) => {
+            const checkCANNON = () => {
+                if (typeof CANNON !== 'undefined') {
+                    console.log('✅ CANNON-ES 로딩 완료');
+                    resolve();
+                } else {
+                    setTimeout(checkCANNON, 100);
+                }
+            };
+            checkCANNON();
+        });
     }
     
     /**
-     * Three.js 및 물리 엔진 초기화
+     * Three.js 초기화
      */
-    async initializeEngine() {
-        // 필수 라이브러리 체크
-        if (typeof THREE === 'undefined') {
-            throw new Error('Three.js 라이브러리가 로드되지 않았습니다.');
-        }
+    initializeThreeJS() {
+        console.log('🎨 Three.js 초기화 중...');
         
-        if (typeof CANNON === 'undefined') {
-            throw new Error('CANNON.js 라이브러리가 로드되지 않았습니다.');
-        }
+        // 캔버스 및 컨테이너 설정
+        const canvas = document.getElementById('gameCanvas');
+        const container = document.getElementById('gameContainer');
         
-        console.log('✅ CANNON.js 물리 엔진 사용');
-        
-        // 캔버스 설정
-        this.canvas = document.getElementById('gameCanvas');
-        if (!this.canvas) {
-            throw new Error('gameCanvas 요소를 찾을 수 없습니다.');
-        }
-        
-        // Three.js 씬 생성
-        this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.Fog(0x000428, 50, 200);
-        
-        // 카메라 설정
-        this.camera = new THREE.PerspectiveCamera(
-            60,
-            800 / 600,
-            0.1,
-            1000
-        );
-        this.camera.position.set(0, 12, 12);
-        this.camera.lookAt(0, 0, 0);
-        
-        // 렌더러 설정
+        // 렌더러 생성
         this.renderer = new THREE.WebGLRenderer({
-            canvas: this.canvas,
+            canvas: canvas,
             antialias: true,
-            alpha: false,
-            powerPreference: "high-performance"
+            alpha: false
         });
         
-        // 초기 크기 설정
-        const initialWidth = 800;
-        const initialHeight = 600;
-        this.renderer.setSize(initialWidth, initialHeight);
+        // 캔버스 크기 설정
+        const containerWidth = Math.min(800, window.innerWidth - 40);
+        const containerHeight = Math.min(600, window.innerHeight - 200);
+        
+        this.renderer.setSize(containerWidth, containerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -219,83 +198,89 @@ class BallBalanceAdventure extends SensorGameSDK {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
         
-        // 캔버스 크기 명시적 설정
-        this.canvas.width = initialWidth;
-        this.canvas.height = initialHeight;
-        this.canvas.style.width = initialWidth + 'px';
-        this.canvas.style.height = initialHeight + 'px';
+        // 씬 생성
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x001122);
+        this.scene.fog = new THREE.Fog(0x001122, 20, 100);
         
-        console.log(`📐 초기 캔버스 크기: ${initialWidth}x${initialHeight}`);
-        
-        // CANNON.js 물리 세계 초기화
-        this.world = new CANNON.World();
-        this.world.gravity.set(0, -20, 0);
-        this.world.broadphase = new CANNON.NaiveBroadphase();
-        this.world.solver.iterations = 10;
-        this.world.defaultContactMaterial.friction = 0.3;
-        this.world.defaultContactMaterial.restitution = 0.4;
-        
-        // 물리 머티리얼 설정
-        this.setupPhysicsMaterials();
-        
-        // 시각 머티리얼 설정
-        this.setupVisualMaterials();
+        // 카메라 생성
+        this.camera = new THREE.PerspectiveCamera(
+            75,
+            containerWidth / containerHeight,
+            0.1,
+            1000
+        );
+        this.camera.position.set(0, 10, 10);
+        this.camera.lookAt(0, 0, 0);
         
         // 조명 설정
         this.setupLighting();
         
-        // 환경 설정
-        this.setupEnvironment();
-        
-        // 파티클 시스템 초기화
-        this.initializeParticles();
-        
-        // 반응형 캔버스 설정
-        this.setupResponsiveCanvas();
-        
-        console.log('✅ 엔진 초기화 완료');
+        console.log('✅ Three.js 초기화 완료');
     }
     
     /**
-     * 물리 머티리얼 설정
+     * 조명 설정
      */
-    setupPhysicsMaterials() {
-        // 볼 머티리얼
-        this.materials.physics.ball = new CANNON.Material("ball");
-        this.materials.physics.ball.friction = 0.3;
-        this.materials.physics.ball.restitution = 0.4;
+    setupLighting() {
+        // 주변광
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+        this.scene.add(ambientLight);
         
-        // 플랫폼 머티리얼
-        this.materials.physics.platform = new CANNON.Material("platform");
-        this.materials.physics.platform.friction = 0.5;
-        this.materials.physics.platform.restitution = 0.3;
+        // 방향광 (태양광)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(10, 20, 10);
+        directionalLight.castShadow = true;
         
-        // 목표 머티리얼
-        this.materials.physics.goal = new CANNON.Material("goal");
-        this.materials.physics.goal.friction = 0.1;
-        this.materials.physics.goal.restitution = 0.8;
+        // 그림자 맵 설정
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.1;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -20;
+        directionalLight.shadow.camera.right = 20;
+        directionalLight.shadow.camera.top = 20;
+        directionalLight.shadow.camera.bottom = -20;
         
-        // 장애물 머티리얼
-        this.materials.physics.obstacle = new CANNON.Material("obstacle");
-        this.materials.physics.obstacle.friction = 0.4;
-        this.materials.physics.obstacle.restitution = 0.6;
+        this.scene.add(directionalLight);
         
-        // 머티리얼 간 상호작용 정의
+        // 포인트 라이트 (볼 주변)
+        const pointLight = new THREE.PointLight(0x00ff88, 0.5, 10);
+        pointLight.position.set(0, 5, 0);
+        this.scene.add(pointLight);
+        
+        // 골 라이트
+        const goalLight = new THREE.PointLight(0xff4444, 0.8, 8);
+        goalLight.position.set(0, 2, 0);
+        this.scene.add(goalLight);
+        this.goalLight = goalLight;
+    }
+    
+    /**
+     * 물리 엔진 초기화
+     */
+    initializePhysics() {
+        console.log('⚛️ CANNON-ES 물리 엔진 초기화 중...');
+        
+        // 물리 월드 생성
+        this.world = new CANNON.World();
+        this.world.gravity.set(0, -9.82, 0);
+        this.world.broadphase = new CANNON.NaiveBroadphase();
+        this.world.solver.iterations = 10;
+        
+        // 물리 머티리얼 생성
+        this.materials.physics.ball = new CANNON.Material('ball');
+        this.materials.physics.platform = new CANNON.Material('platform');
+        this.materials.physics.goal = new CANNON.Material('goal');
+        this.materials.physics.obstacle = new CANNON.Material('obstacle');
+        
+        // 접촉 머티리얼 설정 (부드러운 물리 반응)
         const ballPlatformContact = new CANNON.ContactMaterial(
             this.materials.physics.ball,
             this.materials.physics.platform,
             {
-                friction: 0.4,
-                restitution: 0.3
-            }
-        );
-        
-        const ballObstacleContact = new CANNON.ContactMaterial(
-            this.materials.physics.ball,
-            this.materials.physics.obstacle,
-            {
-                friction: 0.3,
-                restitution: 0.5
+                friction: 0.6,
+                restitution: 0.1
             }
         );
         
@@ -303,180 +288,230 @@ class BallBalanceAdventure extends SensorGameSDK {
             this.materials.physics.ball,
             this.materials.physics.goal,
             {
-                friction: 0.1,
-                restitution: 0.8
+                friction: 0.3,
+                restitution: 0.05
             }
         );
         
-        // 물리 세계에 접촉 머티리얼 추가
+        const ballObstacleContact = new CANNON.ContactMaterial(
+            this.materials.physics.ball,
+            this.materials.physics.obstacle,
+            {
+                friction: 0.4,
+                restitution: 0.2
+            }
+        );
+        
         this.world.addContactMaterial(ballPlatformContact);
-        this.world.addContactMaterial(ballObstacleContact);
         this.world.addContactMaterial(ballGoalContact);
+        this.world.addContactMaterial(ballObstacleContact);
         
-        console.log('✅ 물리 머티리얼 설정 완료');
+        console.log('✅ 물리 엔진 초기화 완료');
     }
     
     /**
-     * 시각 머티리얼 설정
+     * 오디오 시스템 초기화
      */
-    setupVisualMaterials() {
-        this.materials.visual = {
-            ball: new THREE.MeshPhysicalMaterial({
-                color: 0x667eea,
-                metalness: 0.1,
-                roughness: 0.2,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0.1,
-                envMapIntensity: 1.0
-            }),
-            platform: new THREE.MeshLambertMaterial({
-                color: 0x2c3e50,
-                transparent: true,
-                opacity: 0.9
-            }),
-            goal: new THREE.MeshPhysicalMaterial({
-                color: 0xff6b6b,
-                emissive: 0x330000,
-                metalness: 0.0,
-                roughness: 0.3,
-                transparent: true,
-                opacity: 0.9
-            }),
-            obstacle: new THREE.MeshLambertMaterial({
-                color: 0x8e44ad,
-                transparent: true,
-                opacity: 0.8
-            }),
-            collectible: new THREE.MeshPhysicalMaterial({
-                color: 0xf1c40f,
-                metalness: 0.8,
-                roughness: 0.1,
-                emissive: 0x332200,
-                transparent: true,
-                opacity: 0.9
-            })
-        };
-        
-        console.log('✅ 시각 머티리얼 설정 완료');
-    }
-    
-    /**
-     * 조명 설정
-     */
-    setupLighting() {
-        // 환경광
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-        this.scene.add(ambientLight);
-        
-        // 주 조명 (태양광)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        directionalLight.position.set(10, 20, 10);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.near = 0.1;
-        directionalLight.shadow.camera.far = 100;
-        directionalLight.shadow.camera.left = -50;
-        directionalLight.shadow.camera.right = 50;
-        directionalLight.shadow.camera.top = 50;
-        directionalLight.shadow.camera.bottom = -50;
-        this.scene.add(directionalLight);
-        
-        // 보조 조명
-        const pointLight = new THREE.PointLight(0x667eea, 0.5, 100);
-        pointLight.position.set(0, 15, 0);
-        this.scene.add(pointLight);
-        
-        // 스팟 조명 (볼 추적)
-        const spotLight = new THREE.SpotLight(0xffffff, 0.8, 50, Math.PI / 6);
-        spotLight.position.set(0, 20, 0);
-        spotLight.castShadow = true;
-        this.scene.add(spotLight);
-        this.spotLight = spotLight;
-        
-        console.log('✅ 조명 설정 완료');
-    }
-    
-    /**
-     * 환경 설정
-     */
-    setupEnvironment() {
-        // 스카이박스
-        const skyboxGeometry = new THREE.SphereGeometry(500, 32, 32);
-        const skyboxMaterial = new THREE.MeshBasicMaterial({
-            color: 0x001122,
-            side: THREE.BackSide,
-            fog: false
-        });
-        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
-        this.scene.add(skybox);
-        
-        // 배경 별들
-        this.createStars();
-        
-        console.log('✅ 환경 설정 완료');
-    }
-    
-    /**
-     * 배경 별 생성
-     */
-    createStars() {
-        const starsGeometry = new THREE.BufferGeometry();
-        const starsCount = 10000;
-        
-        const positions = new Float32Array(starsCount * 3);
-        const colors = new Float32Array(starsCount * 3);
-        
-        for (let i = 0; i < starsCount; i++) {
-            // 구 표면에 균등하게 분포
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            const radius = 400 + Math.random() * 100;
-            
-            positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-            positions[i * 3 + 1] = radius * Math.cos(phi);
-            positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
-            
-            // 별의 색상 (흰색 ~ 파란색)
-            const brightness = 0.5 + Math.random() * 0.5;
-            colors[i * 3] = brightness;
-            colors[i * 3 + 1] = brightness;
-            colors[i * 3 + 2] = brightness + Math.random() * 0.3;
+    initializeAudio() {
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.createSounds();
+            console.log('🔊 오디오 시스템 초기화 완료');
+        } catch (error) {
+            console.warn('⚠️ 오디오 시스템 초기화 실패:', error);
         }
+    }
+    
+    /**
+     * 사운드 생성 (프로시저럴 오디오)
+     */
+    createSounds() {
+        if (!this.audioContext) return;
         
-        starsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        starsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        // 볼 굴러가는 소리
+        this.sounds.roll = this.createRollSound();
         
-        const starsMaterial = new THREE.PointsMaterial({
-            size: 2,
-            vertexColors: true,
+        // 골 도달 소리
+        this.sounds.goal = this.createGoalSound();
+        
+        // 충돌 소리
+        this.sounds.collision = this.createCollisionSound();
+        
+        // 수집 소리
+        this.sounds.collect = this.createCollectSound();
+    }
+    
+    /**
+     * 굴러가는 소리 생성
+     */
+    createRollSound() {
+        return () => {
+            if (!this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            const filter = this.audioContext.createBiquadFilter();
+            
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(60, this.audioContext.currentTime);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(200, this.audioContext.currentTime);
+            
+            gainNode.gain.setValueAtTime(0.05, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.3);
+            
+            oscillator.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.start();
+            oscillator.stop(this.audioContext.currentTime + 0.3);
+        };
+    }
+    
+    /**
+     * 골 소리 생성
+     */
+    createGoalSound() {
+        return () => {
+            if (!this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(880, this.audioContext.currentTime + 0.3);
+            
+            gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.start();
+            oscillator.stop(this.audioContext.currentTime + 0.5);
+        };
+    }
+    
+    /**
+     * 충돌 소리 생성
+     */
+    createCollisionSound() {
+        return () => {
+            if (!this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(200, this.audioContext.currentTime);
+            
+            gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.start();
+            oscillator.stop(this.audioContext.currentTime + 0.1);
+        };
+    }
+    
+    /**
+     * 수집 소리 생성
+     */
+    createCollectSound() {
+        return () => {
+            if (!this.audioContext) return;
+            
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(880, this.audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(1320, this.audioContext.currentTime + 0.2);
+            
+            gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.start();
+            oscillator.stop(this.audioContext.currentTime + 0.3);
+        };
+    }
+    
+    /**
+     * 머티리얼 초기화
+     */
+    initializeMaterials() {
+        // 볼 머티리얼
+        this.materials.visual.ball = new THREE.MeshPhongMaterial({
+            color: 0x00ff88,
+            shininess: 100,
+            specular: 0x004422
+        });
+        
+        // 플랫폼 머티리얼
+        this.materials.visual.platform = new THREE.MeshLambertMaterial({
+            color: 0x4444aa,
             transparent: true,
             opacity: 0.8
         });
         
-        const stars = new THREE.Points(starsGeometry, starsMaterial);
-        this.scene.add(stars);
+        // 골 머티리얼
+        this.materials.visual.goal = new THREE.MeshPhongMaterial({
+            color: 0xff4444,
+            emissive: 0x440000,
+            shininess: 100
+        });
         
-        console.log('✅ 배경 별 생성 완료');
+        // 장애물 머티리얼
+        this.materials.visual.obstacle = new THREE.MeshPhongMaterial({
+            color: 0x666666,
+            shininess: 50
+        });
+        
+        // 구멍 머티리얼
+        this.materials.visual.hole = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        // 수집 아이템 머티리얼
+        this.materials.visual.collectible = new THREE.MeshPhongMaterial({
+            color: 0xffff00,
+            emissive: 0x444400,
+            shininess: 100
+        });
     }
     
     /**
      * 파티클 시스템 초기화
      */
     initializeParticles() {
-        this.particleSystems.trail = this.createTrailSystem();
-        this.particleSystems.goal = this.createGoalParticles();
-        this.particleSystems.collect = this.createCollectParticles();
-        this.particleSystems.explosion = this.createExplosionParticles();
+        // 볼 트레일 파티클
+        this.createTrailParticles();
         
-        console.log('✅ 파티클 시스템 초기화 완료');
+        // 골 파티클
+        this.createGoalParticles();
+        
+        // 수집 파티클
+        this.createCollectParticles();
+        
+        // 폭발 파티클
+        this.createExplosionParticles();
     }
     
     /**
-     * 볼 궤적 파티클 시스템
+     * 트레일 파티클 생성
      */
-    createTrailSystem() {
-        const particleCount = 50;
+    createTrailParticles() {
+        const particleCount = 100;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
@@ -487,11 +522,11 @@ class BallBalanceAdventure extends SensorGameSDK {
             positions[i * 3 + 1] = 0;
             positions[i * 3 + 2] = 0;
             
-            colors[i * 3] = 0.4;     // R
-            colors[i * 3 + 1] = 0.5; // G
-            colors[i * 3 + 2] = 0.9; // B
+            colors[i * 3] = 0;
+            colors[i * 3 + 1] = 1;
+            colors[i * 3 + 2] = 0.5;
             
-            sizes[i] = Math.random() * 0.5 + 0.1;
+            sizes[i] = 0.1;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -499,331 +534,123 @@ class BallBalanceAdventure extends SensorGameSDK {
         geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
         
         const material = new THREE.PointsMaterial({
-            size: 0.3,
+            size: 0.05,
             vertexColors: true,
             transparent: true,
             opacity: 0.6,
-            sizeAttenuation: true
+            blending: THREE.AdditiveBlending
         });
         
-        const trail = new THREE.Points(geometry, material);
-        this.scene.add(trail);
-        
-        return {
-            object: trail,
-            positions: positions,
-            particleCount: particleCount,
-            currentIndex: 0
-        };
+        this.particleSystems.trail = new THREE.Points(geometry, material);
+        this.scene.add(this.particleSystems.trail);
     }
     
     /**
-     * 목표 지점 파티클 효과
+     * 골 파티클 생성
      */
     createGoalParticles() {
-        const particleCount = 100;
+        const particleCount = 50;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
         
         for (let i = 0; i < particleCount; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.random() * Math.PI;
-            const radius = Math.random() * 3 + 1;
+            const angle = (i / particleCount) * Math.PI * 2;
+            const radius = Math.random() * 2;
             
-            positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-            positions[i * 3 + 1] = radius * Math.cos(phi);
-            positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+            positions[i * 3] = Math.cos(angle) * radius;
+            positions[i * 3 + 1] = Math.random() * 2;
+            positions[i * 3 + 2] = Math.sin(angle) * radius;
             
-            colors[i * 3] = 1.0;     // R
-            colors[i * 3 + 1] = 0.4; // G
-            colors[i * 3 + 2] = 0.4; // B
+            colors[i * 3] = 1;
+            colors[i * 3 + 1] = 0.2;
+            colors[i * 3 + 2] = 0.2;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
         const material = new THREE.PointsMaterial({
-            size: 0.2,
+            size: 0.1,
             vertexColors: true,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
         });
         
-        return new THREE.Points(geometry, material);
+        this.particleSystems.goal = new THREE.Points(geometry, material);
     }
     
     /**
-     * 수집 파티클 효과
+     * 수집 파티클 생성
      */
     createCollectParticles() {
-        const particleCount = 50;
+        const particleCount = 20;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
         
         for (let i = 0; i < particleCount; i++) {
-            positions[i * 3] = 0;
-            positions[i * 3 + 1] = 0;
-            positions[i * 3 + 2] = 0;
+            positions[i * 3] = (Math.random() - 0.5) * 2;
+            positions[i * 3 + 1] = Math.random() * 2;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 2;
             
-            colors[i * 3] = 0.9;     // R
-            colors[i * 3 + 1] = 0.8; // G
-            colors[i * 3 + 2] = 0.1; // B
+            colors[i * 3] = 1;
+            colors[i * 3 + 1] = 1;
+            colors[i * 3 + 2] = 0;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
         const material = new THREE.PointsMaterial({
-            size: 0.4,
+            size: 0.05,
             vertexColors: true,
             transparent: true,
-            opacity: 0.9
+            opacity: 0.7,
+            blending: THREE.AdditiveBlending
         });
         
-        return new THREE.Points(geometry, material);
+        this.particleSystems.collect = new THREE.Points(geometry, material);
     }
     
     /**
-     * 폭발 파티클 효과
+     * 폭발 파티클 생성
      */
     createExplosionParticles() {
-        const particleCount = 50;
+        const particleCount = 30;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
-        const velocities = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
         
         for (let i = 0; i < particleCount; i++) {
             positions[i * 3] = 0;
             positions[i * 3 + 1] = 0;
             positions[i * 3 + 2] = 0;
             
-            velocities[i * 3] = (Math.random() - 0.5) * 20;
-            velocities[i * 3 + 1] = Math.random() * 10;
-            velocities[i * 3 + 2] = (Math.random() - 0.5) * 20;
+            colors[i * 3] = 1;
+            colors[i * 3 + 1] = Math.random() * 0.5;
+            colors[i * 3 + 2] = 0;
             
-            colors[i * 3] = 1.0;     // R
-            colors[i * 3 + 1] = 0.5; // G
-            colors[i * 3 + 2] = 0.0; // B
+            velocities[i * 3] = (Math.random() - 0.5) * 10;
+            velocities[i * 3 + 1] = Math.random() * 10;
+            velocities[i * 3 + 2] = (Math.random() - 0.5) * 10;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
         
         const material = new THREE.PointsMaterial({
-            size: 0.5,
+            size: 0.1,
             vertexColors: true,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
         });
         
-        const explosion = new THREE.Points(geometry, material);
-        this.scene.add(explosion);
-        
-        return {
-            object: explosion,
-            positions: positions,
-            velocities: velocities,
-            active: false,
-            timer: 0
-        };
-    }
-    
-    /**
-     * 오디오 시스템 초기화
-     */
-    async initializeAudio() {
-        try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            this.sounds = {
-                ballRoll: this.createRollSound(),
-                ballBounce: this.createBounceSound(),
-                collect: this.createCollectSound(),
-                goal: this.createGoalSound(),
-                levelComplete: this.createLevelCompleteSound()
-            };
-            
-            console.log('✅ 오디오 시스템 초기화 완료');
-        } catch (error) {
-            console.warn('오디오 초기화 실패:', error);
-        }
-    }
-    
-    /**
-     * 볼 굴리기 사운드 생성
-     */
-    createRollSound() {
-        return {
-            play: (volume = 0.1) => {
-                if (!this.audioContext) return;
-                
-                const oscillator = this.audioContext.createOscillator();
-                const gainNode = this.audioContext.createGain();
-                
-                oscillator.type = 'brown';
-                oscillator.frequency.setValueAtTime(60, this.audioContext.currentTime);
-                
-                gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioContext.destination);
-                
-                oscillator.start();
-                oscillator.stop(this.audioContext.currentTime + 0.1);
-            }
-        };
-    }
-    
-    /**
-     * 볼 바운스 사운드 생성
-     */
-    createBounceSound() {
-        return {
-            play: (volume = 0.3) => {
-                if (!this.audioContext) return;
-                
-                const oscillator = this.audioContext.createOscillator();
-                const gainNode = this.audioContext.createGain();
-                
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(200, this.audioContext.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.2);
-                
-                gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioContext.destination);
-                
-                oscillator.start();
-                oscillator.stop(this.audioContext.currentTime + 0.2);
-            }
-        };
-    }
-    
-    /**
-     * 수집 사운드 생성
-     */
-    createCollectSound() {
-        return {
-            play: (volume = 0.4) => {
-                if (!this.audioContext) return;
-                
-                const oscillator = this.audioContext.createOscillator();
-                const gainNode = this.audioContext.createGain();
-                
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
-                oscillator.frequency.linearRampToValueAtTime(880, this.audioContext.currentTime + 0.1);
-                
-                gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioContext.destination);
-                
-                oscillator.start();
-                oscillator.stop(this.audioContext.currentTime + 0.3);
-            }
-        };
-    }
-    
-    /**
-     * 목표 도달 사운드 생성
-     */
-    createGoalSound() {
-        return {
-            play: (volume = 0.5) => {
-                if (!this.audioContext) return;
-                
-                // 화음 구성
-                const frequencies = [261.63, 329.63, 392.00]; // C, E, G
-                
-                frequencies.forEach((freq, index) => {
-                    const oscillator = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-                    
-                    oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(freq, this.audioContext.currentTime);
-                    
-                    gainNode.gain.setValueAtTime(volume * 0.3, this.audioContext.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1);
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(this.audioContext.destination);
-                    
-                    oscillator.start(this.audioContext.currentTime + index * 0.1);
-                    oscillator.stop(this.audioContext.currentTime + 1);
-                });
-            }
-        };
-    }
-    
-    /**
-     * 레벨 완료 사운드 생성
-     */
-    createLevelCompleteSound() {
-        return {
-            play: (volume = 0.4) => {
-                if (!this.audioContext) return;
-                
-                const melody = [523.25, 587.33, 659.25, 698.46, 783.99]; // C5, D5, E5, F5, G5
-                
-                melody.forEach((freq, index) => {
-                    const oscillator = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-                    
-                    oscillator.type = 'square';
-                    oscillator.frequency.setValueAtTime(freq, this.audioContext.currentTime);
-                    
-                    gainNode.gain.setValueAtTime(volume * 0.2, this.audioContext.currentTime + index * 0.2);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + index * 0.2 + 0.3);
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(this.audioContext.destination);
-                    
-                    oscillator.start(this.audioContext.currentTime + index * 0.2);
-                    oscillator.stop(this.audioContext.currentTime + index * 0.2 + 0.3);
-                });
-            }
-        };
-    }
-    
-    /**
-     * 반응형 캔버스 설정
-     */
-    setupResponsiveCanvas() {
-        this.resizeCanvas();
-        window.addEventListener('resize', () => this.resizeCanvas());
-    }
-    
-    /**
-     * 캔버스 크기 조정
-     */
-    resizeCanvas() {
-        const container = this.canvas.parentElement;
-        const maxWidth = Math.min(container.clientWidth - 40, 800);
-        const maxHeight = Math.min(container.clientHeight - 200, 600);
-        
-        // 4:3 비율 유지
-        const aspectRatio = 4/3;
-        let width = maxWidth;
-        let height = width / aspectRatio;
-        
-        if (height > maxHeight) {
-            height = maxHeight;
-            width = height * aspectRatio;
-        }
-        
-        this.renderer.setSize(width, height);
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        
-        console.log(`📐 캔버스 크기 조정: ${width}x${height}`);
+        this.particleSystems.explosion = new THREE.Points(geometry, material);
     }
     
     /**
@@ -832,120 +659,129 @@ class BallBalanceAdventure extends SensorGameSDK {
     generateLevels() {
         return [
             {
-                id: 1,
-                name: "첫 걸음",
-                description: "기본 조작을 익혀보세요",
-                platformSize: { width: 20, height: 1, depth: 20 },
-                ballStart: { x: 0, y: 2, z: 0 },
-                goalPosition: { x: 8, y: 1.5, z: 0 },
+                level: 1,
+                name: '튜토리얼',
+                platformSize: { width: 20, height: 0.5, depth: 20 },
+                ballStart: { x: 0, y: 2, z: 8 },
+                goalPosition: { x: 0, y: 0.5, z: -8 },
                 obstacles: [],
                 holes: [],
                 collectibles: [
-                    { x: 0, y: 2, z: 0, value: 10 }
+                    { x: 3, y: 0.5, z: 3 },
+                    { x: -3, y: 0.5, z: -3 }
                 ],
                 timeLimit: 60,
-                par: 15
+                description: '기본 조작법을 익혀보세요!'
             },
             {
-                id: 2,
-                name: "첫 번째 도전",
-                description: "장애물을 피해 목표에 도달하세요",
-                platformSize: { width: 25, height: 1, depth: 25 },
-                ballStart: { x: -10, y: 2, z: -10 },
-                goalPosition: { x: 10, y: 1.5, z: 10 },
+                level: 2,
+                name: '장애물 코스',
+                platformSize: { width: 25, height: 0.5, depth: 25 },
+                ballStart: { x: 0, y: 2, z: 10 },
+                goalPosition: { x: 0, y: 0.5, z: -10 },
                 obstacles: [
-                    { x: 0, y: 2, z: 0, size: { width: 2, height: 2, depth: 2 } },
-                    { x: 5, y: 2, z: -5, size: { width: 1.5, height: 3, depth: 1.5 } }
+                    { x: 0, y: 1, z: 0, size: { width: 2, height: 2, depth: 2 } },
+                    { x: 5, y: 1, z: 3, size: { width: 1.5, height: 1.5, depth: 1.5 } },
+                    { x: -5, y: 1, z: -3, size: { width: 1.5, height: 1.5, depth: 1.5 } }
                 ],
                 holes: [
-                    { x: -3, y: 0.5, z: 3, radius: 1.5 }
+                    { x: 2, y: 0, z: 5, radius: 1.5 },
+                    { x: -2, y: 0, z: -5, radius: 1.5 }
                 ],
                 collectibles: [
-                    { x: -5, y: 2, z: 0, value: 15 },
-                    { x: 0, y: 2, z: 5, value: 20 }
+                    { x: 8, y: 0.5, z: 8 },
+                    { x: -8, y: 0.5, z: -8 },
+                    { x: 8, y: 0.5, z: -8 }
                 ],
                 timeLimit: 90,
-                par: 25
+                description: '장애물을 피해 골에 도달하세요!'
             },
             {
-                id: 3,
-                name: "미로의 시작",
-                description: "복잡한 경로를 찾아 나가세요",
-                platformSize: { width: 30, height: 1, depth: 30 },
-                ballStart: { x: -12, y: 2, z: -12 },
-                goalPosition: { x: 12, y: 1.5, z: 12 },
+                level: 3,
+                name: '구멍 지대',
+                platformSize: { width: 30, height: 0.5, depth: 30 },
+                ballStart: { x: 0, y: 2, z: 12 },
+                goalPosition: { x: 0, y: 0.5, z: -12 },
                 obstacles: [
-                    { x: -6, y: 2, z: -6, size: { width: 8, height: 2, depth: 2 } },
-                    { x: 6, y: 2, z: 0, size: { width: 2, height: 2, depth: 8 } },
-                    { x: 0, y: 2, z: 6, size: { width: 6, height: 2, depth: 2 } }
+                    { x: 3, y: 1, z: 6, size: { width: 1, height: 1, depth: 1 } },
+                    { x: -3, y: 1, z: -6, size: { width: 1, height: 1, depth: 1 } }
                 ],
                 holes: [
-                    { x: -8, y: 0.5, z: 0, radius: 1.8 },
-                    { x: 3, y: 0.5, z: -6, radius: 1.5 },
-                    { x: 8, y: 0.5, z: 8, radius: 2.0 }
+                    { x: 0, y: 0, z: 3, radius: 2 },
+                    { x: 5, y: 0, z: 0, radius: 1.5 },
+                    { x: -5, y: 0, z: 0, radius: 1.5 },
+                    { x: 0, y: 0, z: -6, radius: 1.8 }
                 ],
                 collectibles: [
-                    { x: -10, y: 2, z: 0, value: 25 },
-                    { x: 0, y: 2, z: -10, value: 30 },
-                    { x: 6, y: 2, z: 6, value: 35 }
+                    { x: 10, y: 0.5, z: 10 },
+                    { x: -10, y: 0.5, z: 10 },
+                    { x: 10, y: 0.5, z: -10 },
+                    { x: -10, y: 0.5, z: -10 }
                 ],
                 timeLimit: 120,
-                par: 40
+                description: '구멍에 빠지지 않도록 주의하세요!'
             },
             {
-                id: 4,
-                name: "좁은 길",
-                description: "정밀한 조작이 필요한 구간입니다",
-                platformSize: { width: 35, height: 1, depth: 15 },
-                ballStart: { x: -15, y: 2, z: 0 },
-                goalPosition: { x: 15, y: 1.5, z: 0 },
+                level: 4,
+                name: '미로 탈출',
+                platformSize: { width: 35, height: 0.5, depth: 35 },
+                ballStart: { x: 0, y: 2, z: 15 },
+                goalPosition: { x: 0, y: 0.5, z: -15 },
                 obstacles: [
-                    { x: -8, y: 2, z: 3, size: { width: 3, height: 2, depth: 6 } },
-                    { x: -8, y: 2, z: -3, size: { width: 3, height: 2, depth: 6 } },
-                    { x: 0, y: 2, z: 4, size: { width: 6, height: 2, depth: 2 } },
-                    { x: 0, y: 2, z: -4, size: { width: 6, height: 2, depth: 2 } },
-                    { x: 8, y: 2, z: 3, size: { width: 3, height: 2, depth: 6 } },
-                    { x: 8, y: 2, z: -3, size: { width: 3, height: 2, depth: 6 } }
+                    { x: -5, y: 1, z: 10, size: { width: 10, height: 2, depth: 1 } },
+                    { x: 5, y: 1, z: 5, size: { width: 1, height: 2, depth: 10 } },
+                    { x: -5, y: 1, z: -5, size: { width: 10, height: 2, depth: 1 } },
+                    { x: 3, y: 1, z: -10, size: { width: 1, height: 2, depth: 6 } }
                 ],
                 holes: [
-                    { x: -4, y: 0.5, z: 0, radius: 1.0 },
-                    { x: 4, y: 0.5, z: 0, radius: 1.0 }
+                    { x: 8, y: 0, z: 8, radius: 1.2 },
+                    { x: -8, y: 0, z: -8, radius: 1.2 }
                 ],
                 collectibles: [
-                    { x: -12, y: 2, z: 0, value: 40 },
-                    { x: 12, y: 2, z: 0, value: 50 }
+                    { x: 12, y: 0.5, z: 12 },
+                    { x: -12, y: 0.5, z: 12 },
+                    { x: 12, y: 0.5, z: -12 },
+                    { x: -12, y: 0.5, z: -12 },
+                    { x: 0, y: 0.5, z: 0 }
                 ],
-                timeLimit: 100,
-                par: 35
+                timeLimit: 150,
+                description: '미로를 통과해 골에 도달하세요!'
             },
             {
-                id: 5,
-                name: "최종 도전",
-                description: "모든 기술을 발휘해 보세요!",
-                platformSize: { width: 40, height: 1, depth: 40 },
-                ballStart: { x: -18, y: 2, z: -18 },
-                goalPosition: { x: 18, y: 1.5, z: 18 },
+                level: 5,
+                name: '챔피언 챌린지',
+                platformSize: { width: 40, height: 0.5, depth: 40 },
+                ballStart: { x: 0, y: 2, z: 18 },
+                goalPosition: { x: 0, y: 0.5, z: -18 },
                 obstacles: [
-                    { x: -10, y: 2, z: -10, size: { width: 4, height: 3, depth: 4 } },
-                    { x: 0, y: 2, z: -15, size: { width: 10, height: 2, depth: 2 } },
-                    { x: 10, y: 2, z: -5, size: { width: 3, height: 4, depth: 3 } },
-                    { x: -15, y: 2, z: 5, size: { width: 2, height: 2, depth: 8 } },
-                    { x: 5, y: 2, z: 10, size: { width: 8, height: 2, depth: 3 } }
+                    { x: 0, y: 1, z: 10, size: { width: 8, height: 1, depth: 1 } },
+                    { x: 8, y: 1, z: 6, size: { width: 1, height: 1, depth: 8 } },
+                    { x: -8, y: 1, z: 6, size: { width: 1, height: 1, depth: 8 } },
+                    { x: 0, y: 1, z: 0, size: { width: 12, height: 1, depth: 1 } },
+                    { x: 6, y: 1, z: -6, size: { width: 1, height: 1, depth: 6 } },
+                    { x: -6, y: 1, z: -6, size: { width: 1, height: 1, depth: 6 } },
+                    { x: 0, y: 1, z: -12, size: { width: 8, height: 1, depth: 1 } }
                 ],
                 holes: [
-                    { x: -5, y: 0.5, z: -5, radius: 2.0 },
-                    { x: 5, y: 0.5, z: 0, radius: 1.8 },
-                    { x: 0, y: 0.5, z: 8, radius: 2.2 },
-                    { x: 12, y: 0.5, z: 12, radius: 1.5 }
+                    { x: 4, y: 0, z: 12, radius: 1 },
+                    { x: -4, y: 0, z: 12, radius: 1 },
+                    { x: 12, y: 0, z: 2, radius: 1 },
+                    { x: -12, y: 0, z: 2, radius: 1 },
+                    { x: 3, y: 0, z: -3, radius: 1 },
+                    { x: -3, y: 0, z: -3, radius: 1 },
+                    { x: 8, y: 0, z: -15, radius: 1 },
+                    { x: -8, y: 0, z: -15, radius: 1 }
                 ],
                 collectibles: [
-                    { x: -15, y: 2, z: -8, value: 60 },
-                    { x: -8, y: 2, z: 15, value: 70 },
-                    { x: 8, y: 2, z: -8, value: 80 },
-                    { x: 15, y: 2, z: 8, value: 100 }
+                    { x: 15, y: 0.5, z: 15 },
+                    { x: -15, y: 0.5, z: 15 },
+                    { x: 15, y: 0.5, z: -15 },
+                    { x: -15, y: 0.5, z: -15 },
+                    { x: 0, y: 0.5, z: 8 },
+                    { x: 0, y: 0.5, z: -8 }
                 ],
                 timeLimit: 180,
-                par: 60
+                description: '최고의 실력을 보여주세요!'
             }
         ];
     }
@@ -953,59 +789,104 @@ class BallBalanceAdventure extends SensorGameSDK {
     /**
      * 레벨 로드
      */
-    async loadLevel(levelNumber) {
-        const levelData = this.levels[levelNumber - 1];
-        if (!levelData) {
-            console.error('레벨을 찾을 수 없습니다:', levelNumber);
+    loadLevel(levelNumber) {
+        console.log(`🎯 레벨 ${levelNumber} 로딩 중...`);
+        
+        // 기존 오브젝트 제거
+        this.clearLevel();
+        
+        // 레벨 데이터 가져오기
+        this.currentLevelData = this.levels[levelNumber - 1];
+        if (!this.currentLevelData) {
+            console.error('레벨 데이터를 찾을 수 없습니다:', levelNumber);
             return;
         }
         
-        this.currentLevelData = levelData;
+        // 게임 상태 업데이트
         this.gameState.level = levelNumber;
-        
-        // 기존 레벨 오브젝트 제거
-        this.clearLevel();
-        
-        // 플랫폼 생성
-        this.createPlatform(levelData.platformSize);
-        
-        // 볼 생성
-        this.createBall(levelData.ballStart);
-        
-        // 목표 지점 생성
-        this.createGoal(levelData.goalPosition);
-        
-        // 장애물 생성
-        levelData.obstacles.forEach(obstacle => {
-            this.createObstacle(obstacle);
-        });
-        
-        // 구멍 생성
-        levelData.holes.forEach(hole => {
-            this.createHole(hole);
-        });
-        
-        // 수집 아이템 생성
-        levelData.collectibles.forEach(collectible => {
-            this.createCollectible(collectible);
-        });
-        
-        // 카메라 위치 조정
-        this.resetCamera();
-        
-        // 게임 상태 초기화
         this.gameState.time = 0;
         this.gameState.health = this.gameState.maxHealth;
-        this.gameState.isPlaying = true;
         
-        console.log(`✅ 레벨 ${levelNumber} "${levelData.name}" 로드 완료`);
+        // 플랫폼 생성
+        this.createPlatform();
+        
+        // 볼 생성
+        this.createBall();
+        
+        // 골 생성
+        this.createGoal();
+        
+        // 장애물 생성
+        this.createObstacles();
+        
+        // 구멍 생성
+        this.createHoles();
+        
+        // 수집 아이템 생성
+        this.createCollectibles();
+        
+        // 골 파티클 위치 설정
+        if (this.particleSystems.goal) {
+            this.particleSystems.goal.position.copy(this.goal.position);
+            this.scene.add(this.particleSystems.goal);
+        }
+        
+        // 골 라이트 위치 설정
+        if (this.goalLight) {
+            this.goalLight.position.set(
+                this.currentLevelData.goalPosition.x,
+                this.currentLevelData.goalPosition.y + 2,
+                this.currentLevelData.goalPosition.z
+            );
+        }
+        
+        // UI 업데이트
+        this.updateUI();
+        
+        console.log(`✅ 레벨 ${levelNumber} 로딩 완료`);
     }
     
     /**
      * 기존 레벨 오브젝트 제거
      */
     clearLevel() {
-        // Three.js 오브젝트 제거
+        // 물리 오브젝트 제거
+        if (this.ballBody) {
+            this.world.removeBody(this.ballBody);
+            this.ballBody = null;
+        }
+        
+        if (this.platformBody) {
+            this.world.removeBody(this.platformBody);
+            this.platformBody = null;
+        }
+        
+        if (this.goalBody) {
+            this.world.removeBody(this.goalBody);
+            this.goalBody = null;
+        }
+        
+        // 장애물 제거
+        this.obstacles.forEach(obstacle => {
+            this.world.removeBody(obstacle.body);
+            this.scene.remove(obstacle.mesh);
+        });
+        this.obstacles = [];
+        
+        // 구멍 제거
+        this.holes.forEach(hole => {
+            this.scene.remove(hole.mesh);
+        });
+        this.holes = [];
+        
+        // 수집 아이템 제거
+        this.collectibles.forEach(collectible => {
+            this.world.removeBody(collectible.body);
+            this.scene.remove(collectible.mesh);
+        });
+        this.collectibles = [];
+        
+        // 시각적 오브젝트 제거
         if (this.ball) {
             this.scene.remove(this.ball);
             this.ball = null;
@@ -1021,467 +902,464 @@ class BallBalanceAdventure extends SensorGameSDK {
             this.goal = null;
         }
         
-        // 장애물 제거
-        this.obstacles.forEach(obstacle => {
-            this.scene.remove(obstacle.mesh);
-            if (obstacle.body) {
-                this.world.remove(obstacle.body);
-            }
-        });
-        this.obstacles = [];
-        
-        // 구멍 제거
-        this.holes.forEach(hole => {
-            this.scene.remove(hole.mesh);
-            if (hole.ring) {
-                this.scene.remove(hole.ring);
-            }
-        });
-        this.holes = [];
-        
-        // 수집 아이템 제거
-        this.collectibles.forEach(collectible => {
-            this.scene.remove(collectible.mesh);
-            if (collectible.body) {
-                this.world.remove(collectible.body);
-            }
-        });
-        this.collectibles = [];
-        
-        // 물리 바디 제거
-        if (this.ballBody) {
-            this.world.remove(this.ballBody);
-            this.ballBody = null;
+        // 파티클 시스템 제거
+        if (this.particleSystems.goal) {
+            this.scene.remove(this.particleSystems.goal);
         }
         
-        if (this.platformBody) {
-            this.world.remove(this.platformBody);
-            this.platformBody = null;
+        // 벽 메쉬 및 바디 제거
+        if (this.wallMeshes) {
+            this.wallMeshes.forEach(mesh => {
+                this.scene.remove(mesh);
+            });
+            this.wallMeshes = [];
         }
         
-        if (this.goalBody) {
-            this.world.remove(this.goalBody);
-            this.goalBody = null;
+        if (this.wallBodies) {
+            this.wallBodies.forEach(body => {
+                this.world.removeBody(body);
+            });
+            this.wallBodies = [];
         }
     }
     
     /**
      * 플랫폼 생성
      */
-    createPlatform(size) {
-        // Three.js 메시
-        const geometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
-        this.platform = new THREE.Mesh(geometry, this.materials.visual.platform);
+    createPlatform() {
+        const { width, height, depth } = this.currentLevelData.platformSize;
+        
+        // 시각적 플랫폼
+        const platformGeometry = new THREE.BoxGeometry(width, height, depth);
+        this.platform = new THREE.Mesh(platformGeometry, this.materials.visual.platform);
         this.platform.position.set(0, 0, 0);
         this.platform.receiveShadow = true;
         this.scene.add(this.platform);
         
-        // 물리 바디
-        const shape = new CANNON.Box(new CANNON.Vec3(size.width/2, size.height/2, size.depth/2));
-        this.platformBody = new CANNON.Body({ 
-            mass: 0, 
-            material: this.materials.physics.platform 
+        // 물리 플랫폼
+        const platformShape = new CANNON.Box(new CANNON.Vec3(width/2, height/2, depth/2));
+        this.platformBody = new CANNON.Body({
+            mass: 0,
+            shape: platformShape,
+            material: this.materials.physics.platform
         });
-        this.platformBody.addShape(shape);
         this.platformBody.position.set(0, 0, 0);
-        this.world.add(this.platformBody);
+        this.world.addBody(this.platformBody);
         
-        // 플랫폼 테두리 발광 효과
-        const edgeGeometry = new THREE.EdgesGeometry(geometry);
-        const edgeMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x667eea, 
-            linewidth: 2,
+        // 플랫폼 경계 벽 생성
+        this.createPlatformWalls(width, height, depth);
+    }
+    
+    /**
+     * 플랫폼 경계 벽 생성
+     */
+    createPlatformWalls(width, height, depth) {
+        const wallHeight = 1; // 벽 높이를 낮춤
+        const wallThickness = 0.2; // 벽 두께를 얇게
+        
+        // 경계 벽 생성 (시각적 표시를 위한 메쉬도 함께)
+        const wallMaterial = new THREE.MeshPhongMaterial({
+            color: 0x888888,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.3
         });
-        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        this.platform.add(edges);
+        
+        // 앞쪽 벽
+        const frontWallShape = new CANNON.Box(new CANNON.Vec3(width/2, wallHeight/2, wallThickness/2));
+        const frontWallBody = new CANNON.Body({
+            mass: 0,
+            shape: frontWallShape,
+            material: this.materials.physics.obstacle
+        });
+        frontWallBody.position.set(0, wallHeight/2, depth/2 + wallThickness/2);
+        this.world.addBody(frontWallBody);
+        
+        // 시각적 벽 (앞쪽)
+        const frontWallGeometry = new THREE.BoxGeometry(width, wallHeight, wallThickness);
+        const frontWallMesh = new THREE.Mesh(frontWallGeometry, wallMaterial);
+        frontWallMesh.position.copy(frontWallBody.position);
+        this.scene.add(frontWallMesh);
+        
+        // 뒤쪽 벽
+        const backWallShape = new CANNON.Box(new CANNON.Vec3(width/2, wallHeight/2, wallThickness/2));
+        const backWallBody = new CANNON.Body({
+            mass: 0,
+            shape: backWallShape,
+            material: this.materials.physics.obstacle
+        });
+        backWallBody.position.set(0, wallHeight/2, -depth/2 - wallThickness/2);
+        this.world.addBody(backWallBody);
+        
+        // 시각적 벽 (뒤쪽)
+        const backWallGeometry = new THREE.BoxGeometry(width, wallHeight, wallThickness);
+        const backWallMesh = new THREE.Mesh(backWallGeometry, wallMaterial);
+        backWallMesh.position.copy(backWallBody.position);
+        this.scene.add(backWallMesh);
+        
+        // 왼쪽 벽
+        const leftWallShape = new CANNON.Box(new CANNON.Vec3(wallThickness/2, wallHeight/2, depth/2));
+        const leftWallBody = new CANNON.Body({
+            mass: 0,
+            shape: leftWallShape,
+            material: this.materials.physics.obstacle
+        });
+        leftWallBody.position.set(-width/2 - wallThickness/2, wallHeight/2, 0);
+        this.world.addBody(leftWallBody);
+        
+        // 시각적 벽 (왼쪽)
+        const leftWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, depth);
+        const leftWallMesh = new THREE.Mesh(leftWallGeometry, wallMaterial);
+        leftWallMesh.position.copy(leftWallBody.position);
+        this.scene.add(leftWallMesh);
+        
+        // 오른쪽 벽
+        const rightWallShape = new CANNON.Box(new CANNON.Vec3(wallThickness/2, wallHeight/2, depth/2));
+        const rightWallBody = new CANNON.Body({
+            mass: 0,
+            shape: rightWallShape,
+            material: this.materials.physics.obstacle
+        });
+        rightWallBody.position.set(width/2 + wallThickness/2, wallHeight/2, 0);
+        this.world.addBody(rightWallBody);
+        
+        // 시각적 벽 (오른쪽)
+        const rightWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, depth);
+        const rightWallMesh = new THREE.Mesh(rightWallGeometry, wallMaterial);
+        rightWallMesh.position.copy(rightWallBody.position);
+        this.scene.add(rightWallMesh);
+        
+        // 벽 메쉬들을 저장해서 나중에 제거할 수 있도록
+        this.wallMeshes = [frontWallMesh, backWallMesh, leftWallMesh, rightWallMesh];
+        this.wallBodies = [frontWallBody, backWallBody, leftWallBody, rightWallBody];
     }
     
     /**
      * 볼 생성
      */
-    createBall(startPos) {
-        // Three.js 메시
-        const geometry = new THREE.SphereGeometry(0.5, 32, 32);
-        this.ball = new THREE.Mesh(geometry, this.materials.visual.ball);
-        this.ball.position.set(startPos.x, startPos.y, startPos.z);
+    createBall() {
+        const ballRadius = 0.5;
+        const { x, y, z } = this.currentLevelData.ballStart;
+        
+        // 시각적 볼
+        const ballGeometry = new THREE.SphereGeometry(ballRadius, 32, 32);
+        this.ball = new THREE.Mesh(ballGeometry, this.materials.visual.ball);
+        this.ball.position.set(x, y, z);
         this.ball.castShadow = true;
         this.scene.add(this.ball);
         
-        // 물리 바디
-        const shape = new CANNON.Sphere(0.5);
-        this.ballBody = new CANNON.Body({ 
-            mass: 1, 
-            material: this.materials.physics.ball 
+        // 물리 볼 (더 무겁게 해서 안정성 향상)
+        const ballShape = new CANNON.Sphere(ballRadius);
+        this.ballBody = new CANNON.Body({
+            mass: 2,
+            shape: ballShape,
+            material: this.materials.physics.ball
         });
-        this.ballBody.addShape(shape);
-        this.ballBody.position.set(startPos.x, startPos.y, startPos.z);
         this.ballBody.linearDamping = 0.1;
         this.ballBody.angularDamping = 0.1;
-        this.world.add(this.ballBody);
-        
-        // 볼 발광 효과
-        const glowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0x667eea,
-            transparent: true,
-            opacity: 0.2
-        });
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.ball.add(glow);
+        this.ballBody.position.set(x, y, z);
+        this.world.addBody(this.ballBody);
         
         // 충돌 이벤트 리스너
         this.ballBody.addEventListener('collide', (event) => {
-            const velocity = this.ballBody.velocity.length();
-            if (velocity > 3) {
-                this.sounds.ballBounce.play(Math.min(velocity / 15, 0.5));
+            this.onBallCollision(event);
+        });
+    }
+    
+    /**
+     * 골 생성
+     */
+    createGoal() {
+        const goalRadius = 1.5;
+        const goalHeight = 0.2;
+        const { x, y, z } = this.currentLevelData.goalPosition;
+        
+        // 시각적 골
+        const goalGeometry = new THREE.CylinderGeometry(goalRadius, goalRadius, goalHeight, 32);
+        this.goal = new THREE.Mesh(goalGeometry, this.materials.visual.goal);
+        this.goal.position.set(x, y, z);
+        this.goal.receiveShadow = true;
+        this.scene.add(this.goal);
+        
+        // 물리 골
+        const goalShape = new CANNON.Cylinder(goalRadius, goalRadius, goalHeight, 8);
+        this.goalBody = new CANNON.Body({
+            mass: 0,
+            shape: goalShape,
+            material: this.materials.physics.goal,
+            isTrigger: true
+        });
+        this.goalBody.position.set(x, y, z);
+        this.world.addBody(this.goalBody);
+        
+        // 골 트리거 이벤트
+        this.goalBody.addEventListener('collide', (event) => {
+            if (event.target === this.ballBody || event.body === this.ballBody) {
+                this.onGoalReached();
             }
         });
     }
     
     /**
-     * 목표 지점 생성
-     */
-    createGoal(goalPos) {
-        // Three.js 메시
-        const geometry = new THREE.CylinderGeometry(1.5, 1.5, 0.5, 32);
-        this.goal = new THREE.Mesh(geometry, this.materials.visual.goal);
-        this.goal.position.set(goalPos.x, goalPos.y, goalPos.z);
-        this.scene.add(this.goal);
-        
-        // 물리 바디 (센서로 설정)
-        const shape = new CANNON.Cylinder(1.5, 1.5, 0.5, 8);
-        this.goalBody = new CANNON.Body({ 
-            mass: 0, 
-            material: this.materials.physics.goal,
-            isTrigger: true
-        });
-        this.goalBody.addShape(shape);
-        this.goalBody.position.set(goalPos.x, goalPos.y, goalPos.z);
-        this.world.add(this.goalBody);
-        
-        // 목표 지점 파티클 추가
-        const goalParticles = this.particleSystems.goal.clone();
-        goalParticles.position.copy(this.goal.position);
-        this.scene.add(goalParticles);
-        
-        // 목표 지점 발광 효과
-        const glowGeometry = new THREE.CylinderGeometry(2.0, 2.0, 0.1, 32);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff6b6b,
-            transparent: true,
-            opacity: 0.3
-        });
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.y = 0.3;
-        this.goal.add(glow);
-    }
-    
-    /**
      * 장애물 생성
      */
-    createObstacle(obstacleData) {
-        const { x, y, z } = obstacleData;
-        const { width, height, depth } = obstacleData.size;
-        
-        // Three.js 메시
-        const geometry = new THREE.BoxGeometry(width, height, depth);
-        const mesh = new THREE.Mesh(geometry, this.materials.visual.obstacle);
-        mesh.position.set(x, y, z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        this.scene.add(mesh);
-        
-        // 물리 바디
-        const shape = new CANNON.Box(new CANNON.Vec3(width/2, height/2, depth/2));
-        const body = new CANNON.Body({ 
-            mass: 0, 
-            material: this.materials.physics.obstacle 
+    createObstacles() {
+        this.currentLevelData.obstacles.forEach(obstacleData => {
+            const { x, y, z, size } = obstacleData;
+            
+            // 시각적 장애물
+            const obstacleGeometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
+            const obstacleMesh = new THREE.Mesh(obstacleGeometry, this.materials.visual.obstacle);
+            obstacleMesh.position.set(x, y, z);
+            obstacleMesh.castShadow = true;
+            obstacleMesh.receiveShadow = true;
+            this.scene.add(obstacleMesh);
+            
+            // 물리 장애물
+            const obstacleShape = new CANNON.Box(new CANNON.Vec3(size.width/2, size.height/2, size.depth/2));
+            const obstacleBody = new CANNON.Body({
+                mass: 0,
+                shape: obstacleShape,
+                material: this.materials.physics.obstacle
+            });
+            obstacleBody.position.set(x, y, z);
+            this.world.addBody(obstacleBody);
+            
+            this.obstacles.push({
+                mesh: obstacleMesh,
+                body: obstacleBody
+            });
         });
-        body.addShape(shape);
-        body.position.set(x, y, z);
-        this.world.add(body);
-        
-        // 장애물 발광 효과
-        const edgeGeometry = new THREE.EdgesGeometry(geometry);
-        const edgeMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x8e44ad, 
-            transparent: true,
-            opacity: 0.6
-        });
-        const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        mesh.add(edges);
-        
-        this.obstacles.push({ mesh, body });
     }
     
     /**
      * 구멍 생성
      */
-    createHole(holeData) {
-        const { x, y, z, radius } = holeData;
-        
-        // Three.js 메시 (시각적 표현)
-        const geometry = new THREE.CylinderGeometry(radius, radius, 0.1, 32);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0x000000,
-            transparent: true,
-            opacity: 0.8
-        });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(x, y, z);
-        this.scene.add(mesh);
-        
-        // 구멍 테두리 효과
-        const ringGeometry = new THREE.RingGeometry(radius * 0.9, radius * 1.1, 32);
-        const ringMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff3838,
-            transparent: true,
-            opacity: 0.5
-        });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(x, y + 0.05, z);
-        this.scene.add(ring);
-        
-        this.holes.push({ 
-            mesh, 
-            ring, 
-            position: new THREE.Vector3(x, y, z), 
-            radius: radius * 1.2 // 충돌 감지용 반지름을 약간 크게
+    createHoles() {
+        this.currentLevelData.holes.forEach(holeData => {
+            const { x, y, z, radius } = holeData;
+            
+            // 시각적 구멍
+            const holeGeometry = new THREE.CylinderGeometry(radius, radius, 0.1, 32);
+            const holeMesh = new THREE.Mesh(holeGeometry, this.materials.visual.hole);
+            holeMesh.position.set(x, y, z);
+            this.scene.add(holeMesh);
+            
+            this.holes.push({
+                mesh: holeMesh,
+                position: { x, y, z },
+                radius: radius
+            });
         });
     }
     
     /**
      * 수집 아이템 생성
      */
-    createCollectible(collectibleData) {
-        const { x, y, z, value } = collectibleData;
-        
-        // Three.js 메시
-        const geometry = new THREE.OctahedronGeometry(0.3);
-        const mesh = new THREE.Mesh(geometry, this.materials.visual.collectible);
-        mesh.position.set(x, y, z);
-        mesh.castShadow = true;
-        this.scene.add(mesh);
-        
-        // 물리 바디 (센서로 설정)
-        const shape = new CANNON.Sphere(0.3);
-        const body = new CANNON.Body({ 
-            mass: 0,
-            isTrigger: true
-        });
-        body.addShape(shape);
-        body.position.set(x, y, z);
-        this.world.add(body);
-        
-        // 회전 애니메이션을 위한 참조 저장
-        const collectible = {
-            mesh,
-            body,
-            value,
-            collected: false,
-            rotationSpeed: Math.random() * 0.02 + 0.01
-        };
-        
-        this.collectibles.push(collectible);
-    }
-    
-    /**
-     * 카메라 리셋
-     */
-    resetCamera() {
-        if (this.ball) {
-            this.cameraTarget.copy(this.ball.position);
-            this.camera.position.copy(this.cameraTarget).add(this.cameraOffset);
-            this.camera.lookAt(this.cameraTarget);
-        }
-    }
-    
-    /**
-     * 센서 콜백 설정
-     */
-    setupSensorCallbacks() {
-        // 센서 데이터 콜백 등록 (필수)
-        this.on('onSensorData', (gameInput) => {
-            this.handleSensorInput(gameInput);
-        });
-        
-        // 센서 상태 변경 콜백 등록 (필수)
-        this.on('onSensorStatusChange', (status) => {
-            this.updateSensorStatus(status.connected);
-        });
-    }
-    
-    /**
-     * 센서 입력 처리 (필수 메서드)
-     */
-    handleSensorInput(gameInput) {
-        if (!this.gameState.isPlaying || this.gameState.isPaused || !this.ballBody) return;
-        
-        const tiltSensitivity = 12.0;
-        const maxTiltForce = 20.0;
-        
-        // 기울기 기반 중력 시뮬레이션
-        if (gameInput.tilt) {
-            const forceX = Math.max(-maxTiltForce, Math.min(maxTiltForce, gameInput.tilt.x * tiltSensitivity));
-            const forceZ = Math.max(-maxTiltForce, Math.min(maxTiltForce, gameInput.tilt.y * tiltSensitivity));
+    createCollectibles() {
+        this.currentLevelData.collectibles.forEach(collectibleData => {
+            const { x, y, z } = collectibleData;
+            const collectibleSize = 0.3;
             
-            // CANNON.js 물리 엔진 사용
-            this.ballBody.force.x += forceX;
-            this.ballBody.force.z += forceZ;
+            // 시각적 수집 아이템
+            const collectibleGeometry = new THREE.SphereGeometry(collectibleSize, 16, 16);
+            const collectibleMesh = new THREE.Mesh(collectibleGeometry, this.materials.visual.collectible);
+            collectibleMesh.position.set(x, y, z);
+            collectibleMesh.castShadow = true;
+            this.scene.add(collectibleMesh);
             
-            // 볼 굴리는 사운드 재생
-            const velocity = this.ballBody.velocity.length();
-            if (velocity > 2 && Math.random() < 0.05) {
-                this.sounds.ballRoll.play(Math.min(velocity / 30, 0.15));
-            }
-        }
-        
-        // 흔들기 기반 점프
-        if (gameInput.shake && gameInput.shake.detected && gameInput.shake.intensity > 15) {
-            this.ballBody.velocity.y += 8;
-            this.sounds.ballBounce.play(0.4);
-        }
-    }
-    
-    /**
-     * 키보드 컨트롤 설정
-     */
-    setupKeyboardControls() {
-        document.addEventListener('keydown', (e) => {
-            this.keys[e.key.toLowerCase()] = true;
+            // 물리 수집 아이템
+            const collectibleShape = new CANNON.Sphere(collectibleSize);
+            const collectibleBody = new CANNON.Body({
+                mass: 0,
+                shape: collectibleShape,
+                material: this.materials.physics.goal,
+                isTrigger: true
+            });
+            collectibleBody.position.set(x, y, z);
+            this.world.addBody(collectibleBody);
             
-            // 특수 키 처리
-            if (e.key === ' ') {
-                e.preventDefault();
-                if (this.ballBody) {
-                    this.ballBody.velocity.y += 8;
-                    this.sounds.ballBounce.play(0.4);
+            // 수집 이벤트 (중복 방지를 위한 throttle 적용)
+            let lastCollisionTime = 0;
+            collectibleBody.addEventListener('collide', (event) => {
+                const currentTime = Date.now();
+                if (currentTime - lastCollisionTime > 500) { // 500ms 쿨다운
+                    if (event.target === this.ballBody || event.body === this.ballBody) {
+                        this.onCollectibleCollected(collectibleMesh, collectibleBody);
+                        lastCollisionTime = currentTime;
+                    }
                 }
-            }
+            });
             
-            if (e.key === 'r' || e.key === 'R') {
-                this.restart();
-            }
+            this.collectibles.push({
+                mesh: collectibleMesh,
+                body: collectibleBody,
+                collected: false
+            });
+        });
+    }
+    
+    /**
+     * 이벤트 리스너 설정
+     */
+    setupEventListeners() {
+        // 키보드 이벤트
+        document.addEventListener('keydown', (event) => {
+            this.keys[event.code] = true;
             
-            if (e.key === 'p' || e.key === 'P') {
+            // 특별 키 처리
+            if (event.code === 'Space') {
+                event.preventDefault();
                 this.togglePause();
             }
-            
-            if (e.key === 'c' || e.key === 'C') {
-                this.toggleCamera();
+            if (event.code === 'KeyR') {
+                this.restart();
             }
         });
         
-        document.addEventListener('keyup', (e) => {
-            this.keys[e.key.toLowerCase()] = false;
+        document.addEventListener('keyup', (event) => {
+            this.keys[event.code] = false;
         });
-    }
-    
-    /**
-     * 키보드 입력 처리
-     */
-    handleKeyboardInput() {
-        if (!this.gameState.isPlaying || this.gameState.isPaused || !this.ballBody || this.sensorConnected) return;
         
-        let mockInput = { tilt: { x: 0, y: 0 }, shake: { detected: false, intensity: 0 } };
-        const tiltStrength = 0.8;
+        // 윈도우 리사이즈 이벤트
+        window.addEventListener('resize', () => {
+            this.onWindowResize();
+        });
         
-        // WASD/화살표 키로 기울기 시뮬레이션
-        if (this.keys['w'] || this.keys['arrowup']) mockInput.tilt.y = -tiltStrength;
-        if (this.keys['s'] || this.keys['arrowdown']) mockInput.tilt.y = tiltStrength;
-        if (this.keys['a'] || this.keys['arrowleft']) mockInput.tilt.x = -tiltStrength;
-        if (this.keys['d'] || this.keys['arrowright']) mockInput.tilt.x = tiltStrength;
-        
-        // 시뮬레이션 입력이 있으면 센서 입력 처리
-        if (mockInput.tilt.x !== 0 || mockInput.tilt.y !== 0) {
-            this.handleSensorInput(mockInput);
-        }
+        // 터치 이벤트 (모바일 지원)
+        document.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+        });
     }
     
     /**
      * 게임 루프 시작
      */
     startGameLoop() {
-        this.lastFrameTime = performance.now();
-        this.gameLoop();
+        this.gameState.gameStarted = true;
+        this.animate();
     }
     
     /**
-     * 게임 루프 (필수 메서드)
+     * 게임 루프 (메인 애니메이션)
      */
-    gameLoop(currentTime) {
-        // 프레임 제한 (60fps)
-        if (currentTime - this.lastFrameTime < 16.67) {
-            requestAnimationFrame((ts) => this.gameLoop(ts));
+    animate() {
+        if (!this.gameState.gameStarted) return;
+        
+        requestAnimationFrame(() => this.animate());
+        
+        // 델타 타임 계산
+        this.deltaTime = this.clock.getDelta();
+        
+        // 게임 일시정지 또는 게임 오버 확인
+        if (this.gameState.isPaused || !this.gameState.isPlaying) {
+            // 렌더링만 계속 (정지 화면 표시)
+            this.renderer.render(this.scene, this.camera);
+            this.updateUI();
             return;
         }
         
-        this.deltaTime = (currentTime - this.lastFrameTime) / 1000;
-        this.lastFrameTime = currentTime;
+        // 물리 업데이트
+        this.updatePhysics();
         
-        // NaN 방지
-        if (isNaN(this.deltaTime) || this.deltaTime <= 0 || this.deltaTime > 1) {
-            this.deltaTime = 1/60;
-        }
-        
-        if (this.gameState.isPlaying && !this.gameState.isPaused) {
-            this.update();
-        }
-        
-        this.render();
-        requestAnimationFrame((ts) => this.gameLoop(ts));
-    }
-    
-    /**
-     * 게임 업데이트 (필수 메서드)
-     */
-    update() {
-        if (!this.ball || !this.ballBody || !this.gameState.isPlaying) return;
-        
-        // 키보드 입력 처리
-        this.handleKeyboardInput();
-        
-        // 물리 시뮬레이션 업데이트
-        this.world.step(1/60);
-        
-        // Three.js 오브젝트를 물리 바디에 동기화
-        this.syncPhysicsToVisuals();
+        // 입력 처리
+        this.handleInput();
         
         // 게임 로직 업데이트
         this.updateGameLogic();
         
+        // 파티클 업데이트
+        this.updateParticles();
+        
         // 카메라 업데이트
         this.updateCamera();
         
-        // 파티클 시스템 업데이트
-        this.updateParticles();
-        
-        // 애니메이션 업데이트
-        this.updateAnimations();
+        // 렌더링
+        this.renderer.render(this.scene, this.camera);
         
         // UI 업데이트
         this.updateUI();
-        
-        // 시간 업데이트
-        this.gameState.time += this.deltaTime;
     }
     
     /**
-     * 물리 바디와 시각적 오브젝트 동기화
+     * 물리 업데이트
      */
-    syncPhysicsToVisuals() {
+    updatePhysics() {
+        if (!this.world) return;
+        
+        // 물리 시뮬레이션 스텝
+        this.world.step(1/60, this.deltaTime, 3);
+        
+        // 물리 오브젝트와 시각적 오브젝트 동기화
         if (this.ball && this.ballBody) {
             this.ball.position.copy(this.ballBody.position);
             this.ball.quaternion.copy(this.ballBody.quaternion);
         }
         
-        // 스팟 라이트가 볼을 추적
-        if (this.spotLight && this.ball) {
-            this.spotLight.target.position.copy(this.ball.position);
-            this.spotLight.target.updateMatrixWorld();
+        // 장애물 동기화
+        this.obstacles.forEach(obstacle => {
+            if (obstacle.mesh && obstacle.body) {
+                obstacle.mesh.position.copy(obstacle.body.position);
+                obstacle.mesh.quaternion.copy(obstacle.body.quaternion);
+            }
+        });
+        
+        // 수집 아이템 회전 애니메이션
+        this.collectibles.forEach(collectible => {
+            if (collectible.mesh && !collectible.collected) {
+                collectible.mesh.rotation.y += this.deltaTime * 2;
+                collectible.mesh.position.y = collectible.body.position.y + Math.sin(Date.now() * 0.003) * 0.1;
+            }
+        });
+    }
+    
+    /**
+     * 입력 처리
+     */
+    handleInput() {
+        if (!this.ballBody) return;
+        
+        const force = new CANNON.Vec3();
+        const forceStrength = 6; // 힘 강도 적절히 조정
+        
+        // 센서 입력 처리
+        if (this.sensorData) {
+            const { orientation, accelerometer } = this.sensorData;
+            
+            if (orientation) {
+                // 기울기에 따른 힘 적용 (적절한 반응성)
+                force.x = orientation.gamma * forceStrength * 0.08;
+                force.z = orientation.beta * forceStrength * 0.08;
+            }
+            
+            if (accelerometer) {
+                // 가속도계에 따른 추가 힘 (적절한 반응성)
+                force.x += accelerometer.x * forceStrength * 0.04;
+                force.z += accelerometer.z * forceStrength * 0.04;
+            }
+        }
+        
+        // 키보드 입력 처리 (센서 없을 때)
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) {
+            force.z -= forceStrength;
+        }
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) {
+            force.z += forceStrength;
+        }
+        if (this.keys['KeyA'] || this.keys['ArrowLeft']) {
+            force.x -= forceStrength;
+        }
+        if (this.keys['KeyD'] || this.keys['ArrowRight']) {
+            force.x += forceStrength;
+        }
+        
+        // 힘 적용
+        if (force.length() > 0) {
+            this.ballBody.applyForce(force, this.ballBody.position);
+            
+            // 굴러가는 소리 재생 (빈도 줄이기)
+            if (this.sounds.roll && Math.random() < 0.02) {
+                this.sounds.roll();
+            }
         }
     }
     
@@ -1489,55 +1367,95 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 게임 로직 업데이트
      */
     updateGameLogic() {
-        if (!this.ball || !this.ballBody) return;
+        if (!this.ballBody) return;
         
-        const ballPosition = this.ballBody.position;
+        // 시간 업데이트
+        this.gameState.time += this.deltaTime;
         
-        // 목표 지점 도달 확인
-        if (this.goal && this.goalBody) {
-            const distanceToGoal = ballPosition.distanceTo(this.goalBody.position);
-            document.getElementById('distanceValue').textContent = Math.max(0, Math.floor(distanceToGoal * 10) / 10);
-            
-            if (distanceToGoal < 2.0) {
-                this.completeLevel();
-                return;
-            }
+        // 볼이 구멍에 빠졌는지 확인
+        this.checkHoleCollisions();
+        
+        // 볼이 플랫폼에서 떨어졌는지 확인
+        this.checkPlatformBounds();
+        
+        // 시간 제한 확인
+        if (this.gameState.time >= this.currentLevelData.timeLimit) {
+            this.onTimeUp();
         }
         
-        // 구멍 빠짐 확인
+        // 볼 속도 제한 (적절한 움직임)
+        const maxVelocity = 12;
+        if (this.ballBody.velocity.length() > maxVelocity) {
+            this.ballBody.velocity.normalize();
+            this.ballBody.velocity.scale(maxVelocity, this.ballBody.velocity);
+        }
+        
+        // 볼 속도 감쇠 (자연스러운 마찰 효과)
+        this.ballBody.velocity.scale(0.99, this.ballBody.velocity);
+        this.ballBody.angularVelocity.scale(0.98, this.ballBody.angularVelocity);
+    }
+    
+    /**
+     * 구멍 충돌 확인
+     */
+    checkHoleCollisions() {
+        if (!this.ballBody) return;
+        
         this.holes.forEach(hole => {
-            const distanceToHole = new THREE.Vector2(ballPosition.x - hole.position.x, ballPosition.z - hole.position.z).length();
-            if (distanceToHole < hole.radius && ballPosition.y > hole.position.y - 0.5) {
-                this.fallIntoHole();
-                return;
+            const distance = Math.sqrt(
+                Math.pow(this.ballBody.position.x - hole.position.x, 2) +
+                Math.pow(this.ballBody.position.z - hole.position.z, 2)
+            );
+            
+            if (distance < hole.radius && this.ballBody.position.y < hole.position.y + 0.5) {
+                this.onBallFallInHole();
             }
         });
+    }
+    
+    /**
+     * 플랫폼 경계 확인
+     */
+    checkPlatformBounds() {
+        if (!this.ballBody || !this.currentLevelData) return;
         
-        // 플랫폼 이탈 확인
-        if (this.currentLevelData) {
-            const platform = this.currentLevelData.platformSize;
-            const margin = 2;
-            if (Math.abs(ballPosition.x) > platform.width/2 + margin || 
-                Math.abs(ballPosition.z) > platform.depth/2 + margin ||
-                ballPosition.y < -5) {
-                this.fallOffPlatform();
-                return;
+        const { width, depth } = this.currentLevelData.platformSize;
+        const ballPos = this.ballBody.position;
+        
+        if (Math.abs(ballPos.x) > width/2 + 2 || 
+            Math.abs(ballPos.z) > depth/2 + 2 || 
+            ballPos.y < -5) {
+            this.onBallOutOfBounds();
+        }
+    }
+    
+    /**
+     * 파티클 업데이트
+     */
+    updateParticles() {
+        // 트레일 파티클 업데이트
+        if (this.particleSystems.trail && this.ball) {
+            const positions = this.particleSystems.trail.geometry.attributes.position.array;
+            
+            // 모든 파티클을 볼 위치로 이동
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] = this.ball.position.x + (Math.random() - 0.5) * 0.5;
+                positions[i + 1] = this.ball.position.y + (Math.random() - 0.5) * 0.5;
+                positions[i + 2] = this.ball.position.z + (Math.random() - 0.5) * 0.5;
             }
+            
+            this.particleSystems.trail.geometry.attributes.position.needsUpdate = true;
         }
         
-        // 수집 아이템 충돌 확인
-        this.collectibles.forEach((collectible, index) => {
-            if (collectible.collected) return;
+        // 골 파티클 업데이트
+        if (this.particleSystems.goal && this.goal) {
+            const positions = this.particleSystems.goal.geometry.attributes.position.array;
             
-            const distance = ballPosition.distanceTo(collectible.body.position);
-            if (distance < 0.8) {
-                this.collectItem(index);
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i + 1] += Math.sin(Date.now() * 0.005 + i) * 0.01;
             }
-        });
-        
-        // 제한 시간 확인
-        if (this.currentLevelData && this.gameState.time > this.currentLevelData.timeLimit) {
-            this.timeUp();
+            
+            this.particleSystems.goal.geometry.attributes.position.needsUpdate = true;
         }
     }
     
@@ -1545,258 +1463,174 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 카메라 업데이트
      */
     updateCamera() {
-        if (!this.ball) return;
+        if (!this.ball || !this.camera) return;
         
-        const targetPosition = this.ball.position.clone();
-        const lerpFactor = 0.05;
-        
-        // 카메라 타겟 부드럽게 이동
-        this.cameraTarget.lerp(targetPosition, lerpFactor);
-        
-        // 카메라 모드에 따른 위치 조정
         switch (this.cameraMode) {
             case 'follow':
-                const desiredPosition = this.cameraTarget.clone().add(this.cameraOffset);
-                this.camera.position.lerp(desiredPosition, lerpFactor);
+                this.updateFollowCamera();
                 break;
             case 'overhead':
-                this.camera.position.set(this.cameraTarget.x, 25, this.cameraTarget.z);
+                this.updateOverheadCamera();
                 break;
             case 'free':
-                // 자유 카메라 모드에서는 마우스 입력으로 제어
+                // 자유 카메라는 마우스 입력으로 제어
                 break;
         }
-        
-        this.camera.lookAt(this.cameraTarget);
     }
     
     /**
-     * 파티클 시스템 업데이트
+     * 추적 카메라 업데이트
      */
-    updateParticles() {
-        // 볼 궤적 파티클 업데이트
-        if (this.ball && this.particleSystems.trail && this.ballBody) {
-            const trail = this.particleSystems.trail;
-            const ballPos = this.ballBody.position;
-            
-            // NaN 값 방지
-            if (isNaN(ballPos.x) || isNaN(ballPos.y) || isNaN(ballPos.z)) {
-                return;
+    updateFollowCamera() {
+        const ballPosition = this.ball.position;
+        const targetPosition = ballPosition.clone().add(this.cameraOffset);
+        
+        // 부드러운 카메라 이동
+        this.camera.position.lerp(targetPosition, 0.1);
+        this.camera.lookAt(ballPosition);
+    }
+    
+    /**
+     * 오버헤드 카메라 업데이트
+     */
+    updateOverheadCamera() {
+        const ballPosition = this.ball.position;
+        
+        this.camera.position.set(ballPosition.x, 15, ballPosition.z);
+        this.camera.lookAt(ballPosition);
+    }
+    
+    /**
+     * 볼 충돌 처리
+     */
+    onBallCollision(event) {
+        const contact = event.contact;
+        const force = contact.getImpactVelocityAlongNormal();
+        
+        // 충돌 소리 재생 조건을 더 엄격하게 (더 강한 충돌에만)
+        if (Math.abs(force) > 8) {
+            // 충돌 소리 재생 (쿨다운 적용)
+            const currentTime = Date.now();
+            if (!this.lastCollisionSoundTime || currentTime - this.lastCollisionSoundTime > 300) {
+                if (this.sounds.collision) {
+                    this.sounds.collision();
+                }
+                this.lastCollisionSoundTime = currentTime;
             }
             
-            // 새 파티클 위치 추가
-            const index = trail.currentIndex % trail.particleCount;
-            trail.positions[index * 3] = ballPos.x;
-            trail.positions[index * 3 + 1] = ballPos.y;
-            trail.positions[index * 3 + 2] = ballPos.z;
-            
-            trail.currentIndex++;
-            trail.object.geometry.attributes.position.needsUpdate = true;
-        }
-        
-        // 목표 지점 파티클 회전
-        if (this.particleSystems.goal) {
-            this.particleSystems.goal.rotation.y += 0.01;
-        }
-        
-        // 폭발 파티클 업데이트
-        if (this.particleSystems.explosion && this.particleSystems.explosion.active) {
-            this.updateExplosionParticles();
+            // 충돌 파티클 효과
+            this.createCollisionEffect(this.ball.position);
         }
     }
     
     /**
-     * 폭발 파티클 업데이트
+     * 골 도달 처리
      */
-    updateExplosionParticles() {
-        const explosion = this.particleSystems.explosion;
+    onGoalReached() {
+        console.log('🎯 골 도달!');
         
-        explosion.timer += this.deltaTime;
+        // 골 소리 재생
+        if (this.sounds.goal) {
+            this.sounds.goal();
+        }
         
-        if (explosion.timer > 2.0) {
-            explosion.active = false;
-            explosion.object.visible = false;
+        // 점수 계산
+        const timeBonus = Math.max(0, this.currentLevelData.timeLimit - this.gameState.time);
+        const collectibleBonus = this.collectibles.filter(c => c.collected).length * 100;
+        const levelScore = Math.floor(1000 + timeBonus * 10 + collectibleBonus);
+        
+        this.gameState.score += levelScore;
+        
+        // 골 효과
+        this.createGoalEffect();
+        
+        // 다음 레벨로 진행
+        setTimeout(() => {
+            this.nextLevel();
+        }, 2000);
+    }
+    
+    /**
+     * 수집 아이템 수집 처리
+     */
+    onCollectibleCollected(mesh, body) {
+        const collectible = this.collectibles.find(c => c.mesh === mesh);
+        if (collectible && !collectible.collected) {
+            collectible.collected = true;
+            
+            // 수집 소리 재생
+            if (this.sounds.collect) {
+                this.sounds.collect();
+            }
+            
+            // 점수 추가
+            this.gameState.score += 100;
+            
+            // 수집 효과
+            this.createCollectEffect(mesh.position);
+            
+            // 아이템 숨기기 (물리 바디 제거는 다음 프레임에서)
+            mesh.visible = false;
+            
+            // 안전하게 물리 바디 제거
+            setTimeout(() => {
+                if (body && this.world) {
+                    try {
+                        this.world.removeBody(body);
+                    } catch (error) {
+                        console.warn('물리 바디 제거 중 오류:', error);
+                    }
+                }
+            }, 100);
+            
+            console.log('💎 수집 아이템 획득!');
+        }
+    }
+    
+    /**
+     * 볼이 구멍에 빠짐 처리
+     */
+    onBallFallInHole() {
+        this.onBallLost();
+    }
+    
+    /**
+     * 볼이 플랫폼에서 떨어짐 처리
+     */
+    onBallOutOfBounds() {
+        this.onBallLost();
+    }
+    
+    /**
+     * 볼 분실 처리
+     */
+    onBallLost() {
+        // 이미 처리 중이면 중복 실행 방지
+        if (this.isProcessingBallLoss) {
             return;
         }
         
-        // 파티클 위치 업데이트
-        for (let i = 0; i < 50; i++) {
-            explosion.positions[i * 3] += explosion.velocities[i * 3] * this.deltaTime;
-            explosion.positions[i * 3 + 1] += explosion.velocities[i * 3 + 1] * this.deltaTime;
-            explosion.positions[i * 3 + 2] += explosion.velocities[i * 3 + 2] * this.deltaTime;
-            
-            // 중력 적용
-            explosion.velocities[i * 3 + 1] -= 9.8 * this.deltaTime;
+        this.isProcessingBallLoss = true;
+        
+        console.log('💥 볼 분실!');
+        
+        // 체력 감소
+        this.gameState.health--;
+        
+        // 폭발 효과
+        if (this.ball) {
+            this.createExplosionEffect(this.ball.position);
         }
         
-        explosion.object.geometry.attributes.position.needsUpdate = true;
-    }
-    
-    /**
-     * 애니메이션 업데이트
-     */
-    updateAnimations() {
-        // 수집 아이템 회전
-        this.collectibles.forEach(collectible => {
-            if (!collectible.collected) {
-                collectible.mesh.rotation.y += collectible.rotationSpeed;
-                collectible.mesh.rotation.x += collectible.rotationSpeed * 0.5;
-            }
-        });
-        
-        // 목표 지점 펄스 효과
-        if (this.goal) {
-            const scale = 1 + Math.sin(this.gameState.time * 3) * 0.1;
-            this.goal.scale.set(scale, 1, scale);
-        }
-    }
-    
-    /**
-     * 게임 렌더링 (필수 메서드)
-     */
-    render() {
-        if (this.renderer && this.scene && this.camera) {
-            this.renderer.render(this.scene, this.camera);
-        }
-    }
-    
-    /**
-     * UI 업데이트 (필수 메서드)
-     */
-    updateUI() {
-        const scoreElement = document.getElementById('scoreValue');
-        if (scoreElement) {
-            scoreElement.textContent = this.gameState.score;
-        }
-        
-        const levelElement = document.getElementById('levelValue');
-        if (levelElement) {
-            levelElement.textContent = this.gameState.level;
-        }
-        
-        const timeElement = document.getElementById('timeValue');
-        if (timeElement) {
-            timeElement.textContent = Math.floor(this.gameState.time);
-        }
-        
-        const healthElement = document.getElementById('healthValue');
-        if (healthElement) {
-            healthElement.textContent = this.gameState.health;
-        }
-    }
-    
-    /**
-     * 센서 상태 업데이트 (필수 메서드)
-     */
-    updateSensorStatus(isConnected) {
-        const statusElement = document.getElementById('sensorStatus');
-        if (statusElement) {
-            if (isConnected) {
-                statusElement.textContent = '📱 센서 연결됨';
-                statusElement.className = 'ui-element sensor-status connected';
-            } else {
-                statusElement.textContent = '⌨️ 키보드 시뮬레이션 (WASD/화살표)';
-                statusElement.className = 'ui-element sensor-status disconnected';
-            }
-        }
-    }
-    
-    /**
-     * 레벨 완료 처리
-     */
-    completeLevel() {
-        this.gameState.isPlaying = false;
-        
-        // 시간 보너스 계산
-        const timeBonus = Math.max(0, (this.currentLevelData.par - this.gameState.time) * 10);
-        
-        // 체력 보너스 계산
-        const healthBonus = this.gameState.health * 50;
-        
-        // 점수 업데이트
-        this.gameState.score += 100 + timeBonus + healthBonus;
-        
-        // 사운드 재생
-        this.sounds.goal.play();
-        this.sounds.levelComplete.play();
-        
-        // 다음 레벨 또는 게임 완료 처리
-        if (this.gameState.level < this.levels.length) {
+        // 게임 오버 확인
+        if (this.gameState.health <= 0) {
+            this.onGameOver();
+        } else {
+            // 볼 리스폰
             setTimeout(() => {
-                this.nextLevel();
-            }, 2000);
-        } else {
-            this.gameComplete();
-        }
-        
-        console.log(`🎯 레벨 ${this.gameState.level} 완료! 점수: ${this.gameState.score}`);
-    }
-    
-    /**
-     * 구멍에 빠짐 처리
-     */
-    fallIntoHole() {
-        this.gameState.health--;
-        this.triggerExplosion();
-        
-        if (this.gameState.health <= 0) {
-            this.gameOver();
-        } else {
-            this.respawnBall();
-        }
-    }
-    
-    /**
-     * 플랫폼 이탈 처리
-     */
-    fallOffPlatform() {
-        this.gameState.health--;
-        this.triggerExplosion();
-        
-        if (this.gameState.health <= 0) {
-            this.gameOver();
-        } else {
-            this.respawnBall();
-        }
-    }
-    
-    /**
-     * 아이템 수집 처리
-     */
-    collectItem(index) {
-        const collectible = this.collectibles[index];
-        if (collectible.collected) return;
-        
-        collectible.collected = true;
-        this.gameState.score += collectible.value;
-        
-        // 시각적 효과
-        collectible.mesh.visible = false;
-        this.world.remove(collectible.body);
-        
-        // 사운드 재생
-        this.sounds.collect.play();
-        
-        console.log(`💰 아이템 수집! +${collectible.value} 점수`);
-    }
-    
-    /**
-     * 폭발 효과 트리거
-     */
-    triggerExplosion() {
-        const explosion = this.particleSystems.explosion;
-        if (explosion && this.ballBody) {
-            explosion.active = true;
-            explosion.timer = 0;
-            explosion.object.visible = true;
-            
-            // 폭발 위치 설정
-            const ballPos = this.ballBody.position;
-            for (let i = 0; i < 50; i++) {
-                explosion.positions[i * 3] = ballPos.x;
-                explosion.positions[i * 3 + 1] = ballPos.y;
-                explosion.positions[i * 3 + 2] = ballPos.z;
-            }
+                this.respawnBall();
+                this.isProcessingBallLoss = false;
+            }, 1000);
         }
     }
     
@@ -1804,94 +1638,180 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 볼 리스폰
      */
     respawnBall() {
-        if (this.ballBody && this.currentLevelData) {
-            const startPos = this.currentLevelData.ballStart;
-            this.ballBody.position.set(startPos.x, startPos.y, startPos.z);
-            this.ballBody.velocity.set(0, 0, 0);
-            this.ballBody.angularVelocity.set(0, 0, 0);
-        }
-    }
-    
-    /**
-     * 게임 오버 처리
-     */
-    gameOver() {
-        this.gameState.isPlaying = false;
-        console.log('💀 게임 오버!');
-        // 게임 오버 UI 표시 등
+        const { x, y, z } = this.currentLevelData.ballStart;
+        
+        this.ballBody.position.set(x, y, z);
+        this.ballBody.velocity.set(0, 0, 0);
+        this.ballBody.angularVelocity.set(0, 0, 0);
+        
+        console.log('🔄 볼 리스폰');
     }
     
     /**
      * 시간 초과 처리
      */
-    timeUp() {
-        this.gameState.isPlaying = false;
+    onTimeUp() {
         console.log('⏰ 시간 초과!');
-        // 시간 초과 UI 표시 등
+        this.onGameOver();
     }
     
     /**
-     * 다음 레벨 진행
+     * 게임 오버 처리
+     */
+    onGameOver() {
+        // 이미 게임 오버 처리 중이면 중복 실행 방지
+        if (!this.gameState.isPlaying) {
+            return;
+        }
+        
+        console.log('💀 게임 오버');
+        
+        this.gameState.isPlaying = false;
+        this.gameState.gameStarted = false;
+        
+        // 게임 오버 화면 표시
+        setTimeout(() => {
+            this.showGameOverScreen();
+        }, 500);
+    }
+    
+    /**
+     * 다음 레벨로 진행
      */
     nextLevel() {
-        if (this.gameState.level < this.levels.length) {
-            this.loadLevel(this.gameState.level + 1);
+        const nextLevelNumber = this.gameState.level + 1;
+        
+        if (nextLevelNumber <= this.levels.length) {
+            this.loadLevel(nextLevelNumber);
+        } else {
+            // 게임 클리어
+            this.onGameComplete();
         }
     }
     
     /**
      * 게임 완료 처리
      */
-    gameComplete() {
-        console.log('🎉 게임 완료! 최종 점수:', this.gameState.score);
-        // 게임 완료 UI 표시 등
-    }
-    
-    /**
-     * 게임 재시작 (권장 메서드)
-     */
-    restart() {
-        this.gameState.score = 0;
-        this.gameState.health = this.gameState.maxHealth;
-        this.gameState.time = 0;
-        this.gameState.isPlaying = true;
-        this.gameState.isPaused = false;
+    onGameComplete() {
+        console.log('🏆 게임 완료!');
         
-        this.loadLevel(this.gameState.level);
-        this.updateUI();
+        this.gameState.isPlaying = false;
         
-        console.log('🔄 게임 재시작');
+        // 게임 완료 화면 표시
+        this.showGameCompleteScreen();
     }
     
     /**
-     * 게임 일시정지 토글
+     * 충돌 효과 생성
      */
-    togglePause() {
-        this.gameState.isPaused = !this.gameState.isPaused;
-        console.log(this.gameState.isPaused ? '⏸️ 일시정지' : '▶️ 재생');
+    createCollisionEffect(position) {
+        // 간단한 파티클 효과
+        if (this.particleSystems.explosion) {
+            this.particleSystems.explosion.position.copy(position);
+            this.scene.add(this.particleSystems.explosion);
+            
+            setTimeout(() => {
+                this.scene.remove(this.particleSystems.explosion);
+            }, 1000);
+        }
     }
     
     /**
-     * 카메라 모드 전환
+     * 골 효과 생성
      */
-    toggleCamera() {
-        const modes = ['follow', 'overhead', 'free'];
-        const currentIndex = modes.indexOf(this.cameraMode);
-        this.cameraMode = modes[(currentIndex + 1) % modes.length];
+    createGoalEffect() {
+        // 골 파티클 효과 강화
+        if (this.particleSystems.goal) {
+            this.particleSystems.goal.material.opacity = 1;
+            
+            setTimeout(() => {
+                if (this.particleSystems.goal) {
+                    this.particleSystems.goal.material.opacity = 0.8;
+                }
+            }, 1000);
+        }
+    }
+    
+    /**
+     * 수집 효과 생성
+     */
+    createCollectEffect(position) {
+        // 수집 파티클 효과
+        if (this.particleSystems.collect) {
+            this.particleSystems.collect.position.copy(position);
+            this.scene.add(this.particleSystems.collect);
+            
+            setTimeout(() => {
+                this.scene.remove(this.particleSystems.collect);
+            }, 500);
+        }
+    }
+    
+    /**
+     * 폭발 효과 생성
+     */
+    createExplosionEffect(position) {
+        // 폭발 파티클 효과
+        if (this.particleSystems.explosion) {
+            this.particleSystems.explosion.position.copy(position);
+            this.scene.add(this.particleSystems.explosion);
+            
+            setTimeout(() => {
+                this.scene.remove(this.particleSystems.explosion);
+            }, 1500);
+        }
+    }
+    
+    /**
+     * UI 업데이트
+     */
+    updateUI() {
+        // 점수 업데이트 (정수로 표시)
+        const scoreElement = document.getElementById('scoreValue');
+        if (scoreElement) {
+            scoreElement.textContent = Math.floor(this.gameState.score);
+        }
         
-        console.log(`📷 카메라 모드: ${this.cameraMode}`);
+        // 레벨 업데이트
+        const levelElement = document.getElementById('levelValue');
+        if (levelElement) {
+            levelElement.textContent = this.gameState.level;
+        }
+        
+        // 시간 업데이트 (정수로 표시)
+        const timeElement = document.getElementById('timeValue');
+        if (timeElement) {
+            timeElement.textContent = Math.floor(this.gameState.time);
+        }
+        
+        // 체력 업데이트
+        const healthElement = document.getElementById('healthValue');
+        if (healthElement) {
+            healthElement.textContent = this.gameState.health;
+        }
+        
+        // 목적지까지의 거리 업데이트 (소수점 한 자리)
+        const distanceElement = document.getElementById('distanceValue');
+        if (distanceElement && this.ball && this.goal) {
+            const distance = this.ball.position.distanceTo(this.goal.position);
+            distanceElement.textContent = distance.toFixed(1);
+        }
+        
+        // 센서 상태 업데이트
+        const sensorStatusElement = document.getElementById('sensorStatus');
+        if (sensorStatusElement) {
+            if (this.sensorData && (this.sensorData.orientation || this.sensorData.accelerometer)) {
+                sensorStatusElement.className = 'ui-element sensor-status connected';
+                sensorStatusElement.innerHTML = '<span>📱</span><span>센서 연결됨</span>';
+            } else {
+                sensorStatusElement.className = 'ui-element sensor-status disconnected';
+                sensorStatusElement.innerHTML = '<span>⌨️</span><span>키보드 모드</span>';
+            }
+        }
     }
     
     /**
-     * 센서 재보정
-     */
-    calibrate() {
-        console.log('🎯 센서 재보정');
-        // 센서 재보정 로직
-    }
-    
-    /**
-     * 로딩 화면 표시/숨김
+     * 로딩 화면 표시/숨기기
      */
     showLoadingScreen(show) {
         const loadingScreen = document.getElementById('loadingScreen');
@@ -1905,28 +1825,112 @@ class BallBalanceAdventure extends SensorGameSDK {
     }
     
     /**
-     * 오류 메시지 표시
+     * 게임 오버 화면 표시
      */
-    showErrorMessage(message) {
-        const loadingScreen = document.getElementById('loadingScreen');
-        if (loadingScreen) {
-            const loadingText = loadingScreen.querySelector('.loading-text');
-            if (loadingText) {
-                loadingText.innerHTML = `
-                    <div style="color: #ff6b6b;">⚠️ 오류 발생</div>
-                    <div style="font-size: 0.9rem; margin-top: 10px;">${message}</div>
-                    <div style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">페이지를 새로고침해주세요</div>
-                `;
-            }
+    showGameOverScreen() {
+        alert(`게임 오버!\n최종 점수: ${this.gameState.score}\n레벨: ${this.gameState.level}`);
+    }
+    
+    /**
+     * 게임 완료 화면 표시
+     */
+    showGameCompleteScreen() {
+        alert(`축하합니다! 게임 완료!\n최종 점수: ${this.gameState.score}\n모든 레벨을 클리어했습니다!`);
+    }
+    
+    /**
+     * 에러 메시지 표시
+     */
+    showError(message) {
+        alert('오류: ' + message);
+    }
+    
+    /**
+     * 윈도우 리사이즈 처리
+     */
+    onWindowResize() {
+        if (!this.camera || !this.renderer) return;
+        
+        const containerWidth = Math.min(800, window.innerWidth - 40);
+        const containerHeight = Math.min(600, window.innerHeight - 200);
+        
+        this.camera.aspect = containerWidth / containerHeight;
+        this.camera.updateProjectionMatrix();
+        
+        this.renderer.setSize(containerWidth, containerHeight);
+    }
+    
+    /**
+     * 게임 재시작 (public API)
+     */
+    restart() {
+        console.log('🔄 게임 재시작');
+        
+        // 게임 상태 초기화
+        this.gameState = {
+            score: 0,
+            level: 1,
+            health: 3,
+            maxHealth: 3,
+            time: 0,
+            isPlaying: true,
+            isPaused: false,
+            gameStarted: true
+        };
+        
+        // 플래그 초기화
+        this.isProcessingBallLoss = false;
+        
+        // 첫 번째 레벨 로드
+        this.loadLevel(1);
+    }
+    
+    /**
+     * 일시정지 토글 (public API)
+     */
+    togglePause() {
+        this.gameState.isPaused = !this.gameState.isPaused;
+        console.log(this.gameState.isPaused ? '⏸️ 일시정지' : '▶️ 게임 재개');
+    }
+    
+    /**
+     * 센서 보정 (public API)
+     */
+    calibrate() {
+        if (this.calibrateSensors) {
+            this.calibrateSensors();
         }
+        console.log('🎯 센서 보정 완료');
+    }
+    
+    /**
+     * 카메라 모드 전환 (public API)
+     */
+    toggleCamera() {
+        const modes = ['follow', 'overhead', 'free'];
+        const currentIndex = modes.indexOf(this.cameraMode);
+        this.cameraMode = modes[(currentIndex + 1) % modes.length];
+        console.log('📷 카메라 모드:', this.cameraMode);
+    }
+    
+    /**
+     * 센서 데이터 수신 (SDK에서 호출)
+     */
+    onSensorData(data) {
+        super.onSensorData(data);
+        // 추가적인 센서 데이터 처리가 필요한 경우 여기에 구현
+    }
+    
+    /**
+     * 세션 종료 (SDK에서 호출)
+     */
+    onSessionEnd() {
+        super.onSessionEnd();
+        this.gameState.isPlaying = false;
+        this.gameState.gameStarted = false;
+        console.log('🔚 게임 세션 종료');
     }
 }
 
-// 게임 인스턴스 생성 (필수)
-document.addEventListener('DOMContentLoaded', () => {
-    // 약간의 지연을 두어 모든 요소가 로드되도록 함
-    setTimeout(() => {
-        console.log('🎮 게임 인스턴스 생성 시작');
-        window.game = new BallBalanceAdventure();
-    }, 100);
-});
+// 게임 인스턴스 생성 및 전역 등록
+window.game = new BallBalanceAdventure();

@@ -1,62 +1,54 @@
 {
     "id": "3d-ball-balance",
     "name": "3D 볼 밸런스 어드벤처",
-    "description": "Three.js 물리 엔진을 활용한 고품질 3D 볼 굴리기 게임입니다. 휴대폰을 기울여서 볼을 조종하고, 다양한 장애물과 퍼즐을 해결하며 목적지에 도달하세요.",
-    "author": "Claude Code",
+    "description": "상용 품질의 3D 물리 시뮬레이션 게임. CANNON-ES 엔진을 사용한 현실적인 볼 물리학과 5단계 점진적 레벨 시스템",
+    "author": "Claude AI",
     "version": "1.0.0",
-    "category": "puzzle",
+    "category": "adventure",
     "difficulty": "medium",
     "icon": "🎯",
     "sensorTypes": ["orientation", "accelerometer"],
     "features": [
-        "singleplayer", 
-        "sensor-control", 
-        "session-based",
-        "3d-graphics",
-        "physics-simulation",
-        "progressive-difficulty",
-        "sound-effects",
-        "particle-effects",
-        "multiple-camera-modes",
-        "keyboard-simulation"
+        "상용 품질 3D 그래픽 (Three.js + 그림자, 조명, 파티클 효과)",
+        "현실적인 물리 시뮬레이션 (CANNON-ES 엔진)",
+        "5단계 레벨 (튜토리얼 → 장애물 → 구멍 → 미로 → 챔피언 챌린지)",
+        "프로시저럴 오디오 (Web Audio API)",
+        "다중 카메라 시스템 (추적, 오버헤드, 자유)",
+        "파티클 시스템 (트레일, 골 효과, 충돌 효과)",
+        "실시간 점수 및 게임 상태 관리"
     ],
+    "controls": {
+        "mobile": "휴대폰을 기울여서 볼을 굴려 목적지에 도달하세요",
+        "keyboard": "WASD 또는 화살표 키로 조작 가능"
+    },
     "requirements": {
         "sensors": ["orientation", "accelerometer"],
-        "permissions": ["devicemotion", "deviceorientation"],
-        "libraries": ["three.js", "cannon.js"],
-        "browser": "modern"
-    },
-    "settings": {
-        "autoMatch": true,
-        "maxPlayers": 1,
-        "sessionTimeout": 300000,
-        "preferredOrientation": "landscape"
+        "browser": "Chrome, Safari, Firefox, Edge",
+        "mobile": "iOS Safari, Android Chrome"
     },
     "gameplay": {
-        "objective": "볼을 굴려서 목적지(빨간 원통)에 도달",
-        "controls": {
-            "tilt": "볼의 방향 제어",
-            "shake": "볼 점프",
-            "keyboard": "WASD/화살표 키로 시뮬레이션"
-        },
-        "scoring": {
-            "timeBonus": "빠른 클리어 시 추가 점수",
-            "healthBonus": "남은 체력당 50점",
-            "collectibles": "수집 아이템별 점수"
-        },
+        "objective": "볼을 굴려서 빨간 목적지에 도달",
         "levels": 5,
-        "estimatedPlayTime": "15-30분"
+        "levelTypes": [
+            "튜토리얼 - 기본 조작법 익히기",
+            "장애물 코스 - 장애물을 피해 골 도달",
+            "구멍 지대 - 구멍에 빠지지 않도록 주의",
+            "미로 탈출 - 미로를 통과해 골 도달",
+            "챔피언 챌린지 - 최고의 실력 시험"
+        ],
+        "scoring": {
+            "levelClear": "1000점 기본 점수",
+            "timeBonus": "남은 시간 x 10점",
+            "collectibles": "수집 아이템별 100점"
+        },
+        "estimatedPlayTime": "20-40분"
     },
     "technical": {
-        "engine": "Three.js r128 + Cannon.js",
-        "rendering": "WebGL with shadows and post-processing",
-        "physics": "Real-time physics simulation",
+        "engine": "Three.js r128 + CANNON-ES",
+        "rendering": "WebGL with shadows, lighting, and post-processing",
+        "physics": "Real-time physics simulation with material properties",
         "audio": "Procedural Web Audio API sounds",
-        "performance": "60fps target with LOD optimization"
+        "performance": "60fps stable rendering with optimization"
     },
-    "accessibility": {
-        "colorBlind": "색상에 의존하지 않는 시각적 피드백",
-        "motionSickness": "카메라 모드 전환으로 멀미 방지",
-        "keyboardOnly": "센서 없이도 완전한 게임 플레이 가능"
-    }
+    "tags": ["3D", "physics", "adventure", "levels", "realistic", "particles", "audio", "commercial-quality"]
 }
