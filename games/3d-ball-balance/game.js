@@ -1430,26 +1430,19 @@ class BallBalanceAdventure extends SensorGameSDK {
         // 시각적 동기화
         this.syncPhysicsToVisuals();
     }
-        
-        // 시각적 오브젝트 위치 동기화
-        this.ball.position.copy(this.ballPosition);
-        
-        // 회전 효과 (굴리기 시뮬레이션)
-        this.ball.rotation.x += this.ballVelocity.z * this.deltaTime;
-        this.ball.rotation.z -= this.ballVelocity.x * this.deltaTime;
-    }
     
     /**
      * 게임 로직 업데이트
      */
     updateGameLogic() {
-        if (!this.ball || !this.ballBody) return;
+        if (!this.ball || !this.ballPosition) return;
         
-        const ballPosition = this.ballBody.position;
+        const ballPosition = this.ballPosition;
         
         // 목표 지점 도달 확인
-        if (this.goal && this.goalBody) {
-            const distanceToGoal = ballPosition.distanceTo(this.goalBody.position);
+        if (this.goal && this.currentLevelData) {
+            const goalPos = this.currentLevelData.goalPosition;
+            const distanceToGoal = ballPosition.distanceTo(new THREE.Vector3(goalPos.x, goalPos.y, goalPos.z));
             document.getElementById('distanceValue').textContent = Math.max(0, Math.floor(distanceToGoal * 10) / 10);
             
             if (distanceToGoal < 2.0) {
