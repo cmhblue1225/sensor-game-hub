@@ -64,6 +64,10 @@ class TiltBallGame extends SensorGameSDK {
         // 키보드 상태 (시뮬레이션 모드용)
         this.keys = {};
         
+        // 세션 관리 (v2.0)
+        this.sessionId = null;
+        this.matchedSensorId = null;
+        
         // 게임 요소
         this.canvas = document.getElementById('gameCanvas');
         if (!this.canvas) {
@@ -156,6 +160,16 @@ class TiltBallGame extends SensorGameSDK {
                     gameName: '기울기 볼 굴리기',
                     requestedSensors: ['orientation']
                 }));
+                
+                // 센서 매칭 요청 (1초 후)
+                setTimeout(() => {
+                    console.log('센서 매칭 요청 전송');
+                    this.ws.send(JSON.stringify({
+                        type: 'request_sensor_match',
+                        gameId: 'sample-tilt-ball',
+                        timestamp: Date.now()
+                    }));
+                }, 1000);
             };
             
             this.ws.onmessage = (event) => {
@@ -171,10 +185,22 @@ class TiltBallGame extends SensorGameSDK {
                         console.log('센서 디바이스 연결 해제됨');
                         this.updateSensorStatus(false);
                         break;
+                    case 'sensor_matched':
+                        console.log('🎯 센서 매칭 성공:', data.deviceId);
+                        this.matchedSensorId = data.deviceId;
+                        this.sessionId = data.sessionId;
+                        this.updateSensorStatus(true);
+                        break;
+                    case 'sensor_match_failed':
+                        console.log('⚠️ 센서 매칭 실패:', data.message);
+                        this.updateSensorStatus(false);
+                        break;
                     case 'sensor_data':
-                        console.log('센서 데이터 수신:', data.sensorData);
-                        // 센서 데이터를 게임 입력으로 변환
-                        this.processSensorData(data.sensorData);
+                        // 세션 ID 확인 후 센서 데이터 처리
+                        if (data.sessionId === this.sessionId) {
+                            console.log('센서 데이터 수신:', data.sensorData);
+                            this.processSensorData(data.sensorData);
+                        }
                         break;
                 }
             };
