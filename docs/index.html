@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>센서 게임 허브 - 개발자 문서</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding: 40px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 20px;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .docs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+
+        .doc-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .doc-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .doc-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .doc-icon {
+            font-size: 3rem;
+            margin-right: 15px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+        }
+
+        .doc-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .doc-description {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        .doc-meta {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .doc-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-primary { background: #e3f2fd; color: #1976d2; }
+        .badge-llm { background: #f3e5f5; color: #7b1fa2; }
+        .badge-guide { background: #e8f5e8; color: #388e3c; }
+        .badge-reference { background: #fff3e0; color: #f57c00; }
+
+        .doc-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .doc-link {
+            flex: 1;
+            text-align: center;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .doc-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .doc-link.secondary {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .doc-link.secondary:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+
+        .section-title {
+            font-size: 2rem;
+            color: white;
+            margin-bottom: 30px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .info-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .info-section h3 {
+            color: white;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .info-section p {
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 10px;
+        }
+
+        .quick-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .quick-link {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .quick-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .docs-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .doc-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 개발자 문서</h1>
+            <p>센서 게임 허브 v2.0 개발을 위한 완전한 가이드</p>
+            <a href="../" class="back-button">← 메인 허브로 돌아가기</a>
+        </div>
+
+        <div class="info-section">
+            <h3>🎯 문서 가이드</h3>
+            <p><strong>LLM 개발자:</strong> Claude Code, Gemini CLI 등 AI 도구를 사용한다면 <em>LLM 개발 가이드</em>를 먼저 확인하세요.</p>
+            <p><strong>개발자:</strong> 직접 개발한다면 <em>완전 개발 가이드</em>부터 시작하세요.</p>
+            <p><strong>빠른 참조:</strong> 특정 기능이나 API를 찾고 있다면 해당 문서를 직접 확인하세요.</p>
+        </div>
+
+        <h2 class="section-title">📋 사용 가능한 문서들</h2>
+        
+        <div class="docs-grid">
+            <div class="doc-card">
+                <div class="doc-header">
+                    <div class="doc-icon">🤖</div>
+                    <div class="doc-title">LLM 개발 가이드</div>
+                </div>
+                <div class="doc-description">
+                    Claude Code, Gemini CLI 등 AI 개발 도구를 위한 최적화된 프롬프트 문서입니다. 
+                    호환성 보장을 위한 완전한 코드 템플릿과 체크리스트를 포함합니다.
+                </div>
+                <div class="doc-meta">
+                    <span class="doc-badge badge-llm">LLM 전용</span>
+                    <span class="doc-badge badge-primary">필수</span>
+                    <span>📄 606줄</span>
+                </div>
+                <div class="doc-actions">
+                    <a href="LLM_DEVELOPMENT_PROMPT.md" class="doc-link">문서 보기</a>
+                    <a href="LLM_DEVELOPMENT_PROMPT.md" class="doc-link secondary" download>다운로드</a>
+                </div>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-header">
+                    <div class="doc-icon">📖</div>
+                    <div class="doc-title">완전 개발 가이드</div>
+                </div>
+                <div class="doc-description">
+                    설치부터 배포까지 전체 개발 과정을 다루는 포괄적인 문서입니다. 
+                    개발자가 직접 읽고 학습할 수 있도록 상세한 설명과 예제를 포함합니다.
+                </div>
+                <div class="doc-meta">
+                    <span class="doc-badge badge-guide">개발자용</span>
+                    <span class="doc-badge badge-primary">필수</span>
+                    <span>📄 1,175줄</span>
+                </div>
+                <div class="doc-actions">
+                    <a href="COMPLETE_DEVELOPER_GUIDE.md" class="doc-link">문서 보기</a>
+                    <a href="COMPLETE_DEVELOPER_GUIDE.md" class="doc-link secondary" download>다운로드</a>
+                </div>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-header">
+                    <div class="doc-icon">🎮</div>
+                    <div class="doc-title">게임 개발 가이드</div>
+                </div>
+                <div class="doc-description">
+                    센서 게임 개발을 위한 상세한 기술 문서입니다. 
+                    SDK 사용법, 센서 처리, 게임 로직 구현 등을 다룹니다.
+                </div>
+                <div class="doc-meta">
+                    <span class="doc-badge badge-guide">게임 개발</span>
+                    <span class="doc-badge badge-reference">참조</span>
+                    <span>📄 312줄</span>
+                </div>
+                <div class="doc-actions">
+                    <a href="GAME_DEVELOPMENT_GUIDE.md" class="doc-link">문서 보기</a>
+                    <a href="GAME_DEVELOPMENT_GUIDE.md" class="doc-link secondary" download>다운로드</a>
+                </div>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-header">
+                    <div class="doc-icon">🔧</div>
+                    <div class="doc-title">개발자 가이드</div>
+                </div>
+                <div class="doc-description">
+                    기본적인 개발 환경 설정과 프로젝트 구조를 설명하는 문서입니다. 
+                    처음 시작하는 개발자를 위한 기초 가이드입니다.
+                </div>
+                <div class="doc-meta">
+                    <span class="doc-badge badge-guide">기초</span>
+                    <span class="doc-badge badge-reference">참조</span>
+                </div>
+                <div class="doc-actions">
+                    <a href="developer-guide.md" class="doc-link">문서 보기</a>
+                    <a href="developer-guide.md" class="doc-link secondary" download>다운로드</a>
+                </div>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-header">
+                    <div class="doc-icon">🤖</div>
+                    <div class="doc-title">AI 개발자 프롬프트</div>
+                </div>
+                <div class="doc-description">
+                    AI 개발 도구를 위한 프롬프트 문서입니다. 
+                    게임 개발에 필요한 핵심 정보와 예제를 포함합니다.
+                </div>
+                <div class="doc-meta">
+                    <span class="doc-badge badge-llm">AI 도구</span>
+                    <span class="doc-badge badge-reference">참조</span>
+                    <span>📄 660줄</span>
+                </div>
+                <div class="doc-actions">
+                    <a href="ai-developer-prompt.md" class="doc-link">문서 보기</a>
+                    <a href="ai-developer-prompt.md" class="doc-link secondary" download>다운로드</a>
+                </div>
+            </div>
+
+            <div class="doc-card">
+                <div class="doc-header">
+                    <div class="doc-icon">🔄</div>
+                    <div class="doc-title">게임 개발 전체 흐름</div>
+                </div>
+                <div class="doc-description">
+                    LLM을 활용한 게임 개발부터 배포까지의 전체 플로우를 설명하는 문서입니다. 
+                    실제 예제와 함께 단계별 가이드를 제공합니다.
+                </div>
+                <div class="doc-meta">
+                    <span class="doc-badge badge-guide">워크플로우</span>
+                    <span class="doc-badge badge-reference">참조</span>
+                    <span>📄 287줄</span>
+                </div>
+                <div class="doc-actions">
+                    <a href="게임 개발 전체 흐름.md" class="doc-link">문서 보기</a>
+                    <a href="게임 개발 전체 흐름.md" class="doc-link secondary" download>다운로드</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h3>🚀 빠른 시작 가이드</h3>
+            <p><strong>1단계:</strong> 환경에 맞는 문서 선택 (LLM 도구 사용 vs 직접 개발)</p>
+            <p><strong>2단계:</strong> 프로젝트 클론 및 환경 설정</p>
+            <p><strong>3단계:</strong> 첫 번째 게임 개발</p>
+            <p><strong>4단계:</strong> 로컬 테스트 및 배포</p>
+            
+            <div class="quick-links">
+                <a href="../" class="quick-link">🎮 게임 허브</a>
+                <a href="../sensor-client" class="quick-link">📱 센서 클라이언트</a>
+                <a href="../dashboard" class="quick-link">📊 대시보드</a>
+                <a href="https://github.com/cmhblue1225/sensor-game-hub" class="quick-link">📂 GitHub</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
