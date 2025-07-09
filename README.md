@@ -163,6 +163,29 @@ class MyFirstGame extends SensorGameSDK {
     }
 }
 
+// ⚠️ 중요: SDK 없이 직접 WebSocket 구현 시 필수 사항
+// 센서 매칭 요청을 반드시 해야 센서 데이터를 받을 수 있습니다!
+/*
+ws.onopen = () => {
+    // 1. 게임 클라이언트 등록
+    ws.send(JSON.stringify({
+        type: 'register_game_client',
+        gameId: 'my-first-game',
+        gameName: '나의 첫 번째 센서 게임',
+        requestedSensors: ['orientation']
+    }));
+    
+    // 2. 센서 매칭 요청 (필수!)
+    setTimeout(() => {
+        ws.send(JSON.stringify({
+            type: 'request_sensor_match',
+            gameId: 'my-first-game',
+            timestamp: Date.now()
+        }));
+    }, 1000);
+};
+*/
+
 document.addEventListener('DOMContentLoaded', () => {
     new MyFirstGame();
 });

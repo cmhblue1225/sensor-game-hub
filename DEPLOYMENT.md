@@ -204,6 +204,32 @@ git push origin main
    - game.json 파일 유효성 확인
    - 파일 경로 확인
 
+4. **센서 연결되지만 게임 반응 없음** ⭐ **NEW**
+   - **문제**: 센서 상태는 "연결됨"이지만 게임 오브젝트가 움직이지 않음
+   - **원인**: 센서 매칭 요청 누락 (v2.0 필수)
+   - **해결**: 다음 코드 확인
+   ```javascript
+   // 게임 클라이언트 등록 후 센서 매칭 요청 필수
+   ws.send(JSON.stringify({
+       type: 'request_sensor_match',
+       gameId: 'your-game-id',
+       timestamp: Date.now()
+   }));
+   ```
+   - **콘솔 확인**: `🎯 센서 매칭 성공` 메시지 확인
+
+5. **센서 데이터 수신 안됨**
+   - **문제**: `sensor_data` 이벤트가 발생하지 않음
+   - **원인**: 세션 ID 불일치 또는 매칭 실패
+   - **해결**: 세션 ID 기반 데이터 처리 확인
+   ```javascript
+   case 'sensor_data':
+       if (data.sessionId === this.sessionId) {
+           this.processSensorData(data.sensorData);
+       }
+       break;
+   ```
+
 ### 로그 확인
 ```bash
 # Render 대시보드에서 실시간 로그 확인

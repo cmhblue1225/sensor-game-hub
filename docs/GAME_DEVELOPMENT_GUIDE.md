@@ -72,6 +72,55 @@ this.on('onSensorStatusChange', (status) => {
 });
 ```
 
+#### 직접 WebSocket 구현 시 필수 사항
+**⚠️ 중요**: SDK 없이 직접 WebSocket을 구현할 때는 반드시 다음 단계를 따라야 합니다:
+
+```javascript
+// WebSocket 연결 후 필수 시퀀스
+ws.onopen = () => {
+    // 1. 게임 클라이언트 등록
+    ws.send(JSON.stringify({
+        type: 'register_game_client',
+        gameId: 'your-game-id',
+        gameName: '게임 이름',
+        requestedSensors: ['orientation']
+    }));
+    
+    // 2. 센서 매칭 요청 (필수!)
+    setTimeout(() => {
+        ws.send(JSON.stringify({
+            type: 'request_sensor_match',
+            gameId: 'your-game-id',
+            timestamp: Date.now()
+        }));
+    }, 1000);
+};
+
+// 메시지 처리에서 필수 이벤트들
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    
+    switch (data.type) {
+        case 'sensor_matched':
+            console.log('🎯 센서 매칭 성공:', data.deviceId);
+            this.sessionId = data.sessionId;
+            this.matchedSensorId = data.deviceId;
+            break;
+            
+        case 'sensor_match_failed':
+            console.log('⚠️ 센서 매칭 실패:', data.message);
+            break;
+            
+        case 'sensor_data':
+            // 반드시 세션 ID 확인 후 처리
+            if (data.sessionId === this.sessionId) {
+                this.processSensorData(data.sensorData);
+            }
+            break;
+    }
+};
+```
+
 ### 3. **멀티 유저 지원 가이드라인**
 
 #### 세션 관리
