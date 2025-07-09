@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 볼 밸런스 어드벤처</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .game-header {
+            text-align: center;
+            margin-bottom: 20px;
+            animation: slideDown 1s ease-out;
+        }
+        
+        .game-header h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            background: linear-gradient(45deg, #667eea, #764ba2, #667eea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            animation: shimmer 2s infinite;
+        }
+        
+        .game-header p {
+            margin: 5px 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        #gameContainer {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 
+                0 20px 50px rgba(0, 0, 0, 0.3),
+                0 0 50px rgba(102, 126, 234, 0.2);
+            background: #000;
+            margin: 20px 0;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(45deg, #000428, #004e92);
+        }
+        
+        .game-ui {
+            margin: 20px 0;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+            animation: slideUp 1s ease-out;
+        }
+        
+        .ui-element {
+            padding: 12px 20px;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .ui-element:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .sensor-status {
+            animation: pulse 2s infinite;
+        }
+        
+        .sensor-status.connected {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border-color: #00ff88;
+        }
+        
+        .sensor-status.disconnected {
+            background: rgba(255, 170, 0, 0.2);
+            color: #ffaa00;
+            border-color: #ffaa00;
+        }
+        
+        .score-display {
+            font-size: 1.2rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .level-display {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+        
+        .time-display {
+            background: linear-gradient(45deg, #feca57, #ff9ff3);
+            color: white;
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:hover {
+            background: linear-gradient(45deg, #5a6fd8, #6441a5);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .restart-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+        }
+        
+        .restart-btn:hover {
+            background: linear-gradient(45deg, #ff5252, #ff3838);
+        }
+        
+        .home-btn {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+        }
+        
+        .home-btn:hover {
+            background: linear-gradient(45deg, #00b894, #00a085);
+        }
+        
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(102, 126, 234, 0.3);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        .loading-text {
+            font-size: 1.2rem;
+            color: #667eea;
+            text-align: center;
+        }
+        
+        .game-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .hud-element {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.9rem;
+            color: white;
+        }
+        
+        .instructions {
+            text-align: center;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 600px;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        
+        .instructions ul {
+            text-align: left;
+            padding-left: 20px;
+            line-height: 1.6;
+        }
+        
+        @keyframes shimmer {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .game-header h1 {
+                font-size: 2rem;
+            }
+            
+            .game-ui {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .game-overlay {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 로딩 스크린 -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">
+            <div>3D 볼 밸런스 어드벤처 로딩 중...</div>
+            <div style="font-size: 0.9rem; margin-top: 10px; opacity: 0.8;">Three.js 엔진 초기화</div>
+        </div>
+    </div>
+    
+    <!-- 게임 헤더 -->
+    <div class="game-header">
+        <h1>🎯 3D 볼 밸런스 어드벤처</h1>
+        <p>휴대폰을 기울여서 볼을 굴려 목적지에 도달하세요!</p>
+    </div>
+    
+    <!-- 게임 UI -->
+    <div class="game-ui">
+        <div class="ui-element sensor-status disconnected" id="sensorStatus">
+            <span>⌨️</span>
+            <span>센서 연결 대기중...</span>
+        </div>
+        <div class="ui-element score-display">
+            <span>🏆</span>
+            <span>점수: <span id="scoreValue">0</span></span>
+        </div>
+        <div class="ui-element level-display">
+            <span>🎯</span>
+            <span>레벨: <span id="levelValue">1</span></span>
+        </div>
+        <div class="ui-element time-display">
+            <span>⏱️</span>
+            <span>시간: <span id="timeValue">0</span>초</span>
+        </div>
+    </div>
+    
+    <!-- 게임 컨테이너 -->
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- 게임 오버레이 HUD -->
+        <div class="game-overlay">
+            <div class="hud-element">
+                <div>체력: <span id="healthValue">3</span>/3</div>
+            </div>
+            <div class="hud-element">
+                <div>목적지까지: <span id="distanceValue">0</span>m</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 컨트롤 버튼 -->
+    <div class="controls-grid">
+        <button class="restart-btn" onclick="window.game && window.game.restart()">
+            🔄 다시 시작
+        </button>
+        <button onclick="window.game && window.game.calibrate()">
+            🎯 센서 보정
+        </button>
+        <button onclick="window.game && window.game.togglePause()">
+            ⏸️ 일시정지
+        </button>
+        <button onclick="window.game && window.game.nextLevel()">
+            ⏭️ 다음 레벨
+        </button>
+        <button onclick="window.game && window.game.toggleCamera()">
+            📷 카메라 전환
+        </button>
+        <button class="home-btn" onclick="window.open('/', '_blank')">
+            🏠 허브로 돌아가기
+        </button>
+    </div>
+    
+    <!-- 게임 설명 -->
+    <div class="instructions">
+        <h3>🎮 게임 방법</h3>
+        <ul>
+            <li><strong>모바일 센서:</strong> 휴대폰을 기울여서 볼을 굴리세요</li>
+            <li><strong>키보드:</strong> WASD 또는 화살표 키로 조작 가능</li>
+            <li><strong>목표:</strong> 빨간 목적지에 볼을 굴려 넣으세요</li>
+            <li><strong>주의:</strong> 구멍에 빠지거나 경계를 벗어나면 체력이 감소합니다</li>
+            <li><strong>점수:</strong> 빠른 시간 내에 클리어할수록 높은 점수를 얻습니다</li>
+        </ul>
+    </div>
+    
+    <!-- Three.js 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.20.0/cannon.min.js"></script>
+    
+    <!-- SDK 로드 (필수) -->
+    <script src="../../sdk/sensor-game-sdk.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

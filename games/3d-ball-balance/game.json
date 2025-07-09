@@ -1,0 +1,62 @@
+{
+    "id": "3d-ball-balance",
+    "name": "3D 볼 밸런스 어드벤처",
+    "description": "Three.js 물리 엔진을 활용한 고품질 3D 볼 굴리기 게임입니다. 휴대폰을 기울여서 볼을 조종하고, 다양한 장애물과 퍼즐을 해결하며 목적지에 도달하세요.",
+    "author": "Claude Code",
+    "version": "1.0.0",
+    "category": "puzzle",
+    "difficulty": "medium",
+    "icon": "🎯",
+    "sensorTypes": ["orientation", "accelerometer"],
+    "features": [
+        "singleplayer", 
+        "sensor-control", 
+        "session-based",
+        "3d-graphics",
+        "physics-simulation",
+        "progressive-difficulty",
+        "sound-effects",
+        "particle-effects",
+        "multiple-camera-modes",
+        "keyboard-simulation"
+    ],
+    "requirements": {
+        "sensors": ["orientation", "accelerometer"],
+        "permissions": ["devicemotion", "deviceorientation"],
+        "libraries": ["three.js", "cannon.js"],
+        "browser": "modern"
+    },
+    "settings": {
+        "autoMatch": true,
+        "maxPlayers": 1,
+        "sessionTimeout": 300000,
+        "preferredOrientation": "landscape"
+    },
+    "gameplay": {
+        "objective": "볼을 굴려서 목적지(빨간 원통)에 도달",
+        "controls": {
+            "tilt": "볼의 방향 제어",
+            "shake": "볼 점프",
+            "keyboard": "WASD/화살표 키로 시뮬레이션"
+        },
+        "scoring": {
+            "timeBonus": "빠른 클리어 시 추가 점수",
+            "healthBonus": "남은 체력당 50점",
+            "collectibles": "수집 아이템별 점수"
+        },
+        "levels": 5,
+        "estimatedPlayTime": "15-30분"
+    },
+    "technical": {
+        "engine": "Three.js r128 + Cannon.js",
+        "rendering": "WebGL with shadows and post-processing",
+        "physics": "Real-time physics simulation",
+        "audio": "Procedural Web Audio API sounds",
+        "performance": "60fps target with LOD optimization"
+    },
+    "accessibility": {
+        "colorBlind": "색상에 의존하지 않는 시각적 피드백",
+        "motionSickness": "카메라 모드 전환으로 멀미 방지",
+        "keyboardOnly": "센서 없이도 완전한 게임 플레이 가능"
+    }
+}
