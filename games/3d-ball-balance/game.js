@@ -241,41 +241,9 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 머티리얼 설정
      */
     setupMaterials() {
-        // 물리 머티리얼 (CANNON.js 사용 시)
-        if (this.physicsEnabled) {
-            this.ballMaterial = new CANNON.Material("ball");
-            this.platformMaterial = new CANNON.Material("platform");
-            this.goalMaterial = new CANNON.Material("goal");
-            
-            // 머티리얼 간 상호작용 정의
-            const ballPlatformContact = new CANNON.ContactMaterial(
-                this.ballMaterial,
-                this.platformMaterial,
-                {
-                    friction: 0.3,
-                    restitution: 0.4
-                }
-            );
-            
-            const ballGoalContact = new CANNON.ContactMaterial(
-                this.ballMaterial,
-                this.goalMaterial,
-                {
-                    friction: 0.1,
-                    restitution: 0.8
-                }
-            );
-            
-            this.world.addContactMaterial(ballPlatformContact);
-            this.world.addContactMaterial(ballGoalContact);
-        } else {
-            // 간단한 물리 시뮬레이션을 위한 설정
-            this.ballVelocity = new THREE.Vector3(0, 0, 0);
-            this.ballPosition = new THREE.Vector3(0, 2, 0);
-            this.gravity = -9.8;
-            this.friction = 0.95;
-            this.bounce = 0.6;
-        }
+        // 간단한 물리 시뮬레이션을 위한 설정 (이미 initializeEngine에서 설정됨)
+        // 물리 속성은 이미 설정되었음
+        
         
         // Three.js 머티리얼
         this.materials = {
@@ -1071,13 +1039,11 @@ class BallBalanceAdventure extends SensorGameSDK {
         this.goal.position.set(goalPos.x, goalPos.y, goalPos.z);
         this.scene.add(this.goal);
         
-        // 물리 바디 (센서로 설정)
-        const shape = new CANNON.Cylinder(1.5, 1.5, 0.5, 8);
-        this.goalBody = new CANNON.Body({ mass: 0, material: this.goalMaterial });
-        this.goalBody.addShape(shape);
-        this.goalBody.position.set(goalPos.x, goalPos.y, goalPos.z);
-        this.goalBody.isTrigger = true;
-        this.world.add(this.goalBody);
+        // 간단한 물리 시스템 - 목표 지점 정보 저장
+        this.goalBody = {
+            position: new THREE.Vector3(goalPos.x, goalPos.y, goalPos.z),
+            radius: 1.5
+        };
         
         // 목표 지점 파티클 추가
         const goalParticles = this.particleSystems.goal.clone();
