@@ -1,0 +1,21 @@
+{
+    "id": "labyrinth-escape",
+    "name": "미로 탈출",
+    "description": "스마트폰을 기울여 공을 조종하여 미로를 탈출하는 게임입니다.",
+    "author": "Gemini",
+    "version": "1.0.0",
+    "category": "puzzle",
+    "difficulty": "easy",
+    "icon": "🗺️",
+    "sensorTypes": ["orientation"],
+    "features": ["singleplayer", "sensor-control", "session-based"],
+    "requirements": {
+        "sensors": ["orientation"],
+        "permissions": ["devicemotion", "deviceorientation"]
+    },
+    "settings": {
+        "autoMatch": true,
+        "maxPlayers": 1,
+        "sessionTimeout": 300000
+    }
+}

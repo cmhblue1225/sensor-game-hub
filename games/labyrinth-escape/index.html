@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>미로 탈출</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0f0f23;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: #1a1a2e;
+        }
+        
+        .game-ui {
+            margin: 20px 0;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .sensor-status {
+            padding: 10px 15px;
+            border-radius: 20px;
+            background: #333;
+            font-weight: bold;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #5a6fd8;
+        }
+    </style>
+</head>
+<body>
+    <h1>미로 탈출</h1>
+    
+    <div class="game-ui">
+        <div class="sensor-status" id="sensorStatus">센서 연결 대기중...</div>
+        <div>점수: <span id="scoreValue">0</span></div>
+        <button onclick="window.game && window.game.restart()">다시 시작</button>
+        <button onclick="window.game && window.game.calibrate()">센서 보정</button>
+        <button onclick="window.open('/', '_blank')">🏠 허브로</button>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <!-- SDK 로드 (필수) -->
+    <script src="../../sdk/sensor-game-sdk.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

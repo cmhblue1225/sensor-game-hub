@@ -1,0 +1,12 @@
+{
+    "id": "brick-breaker",
+    "name": "벽돌깨기",
+    "description": "센서를 이용해 패들을 움직여 공을 튕겨 벽돌을 부수는 게임입니다.",
+    "author": "Gemini",
+    "version": "1.0.0",
+    "category": "action",
+    "difficulty": "easy",
+    "icon": "🧱",
+    "sensorTypes": ["orientation"],
+    "features": ["singleplayer", "sensor-control", "session-based"]
+}
