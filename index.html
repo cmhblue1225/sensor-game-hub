@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 센서 게임 허브 - 모바일 센서로 즐기는 게임 플랫폼</title>
+    <link rel="stylesheet" href="core/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* 디바이스 선택 모달 */
+        .device-detector {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 35, 0.98);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(20px);
+        }
+        
+        .device-selector {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 3rem;
+            border-radius: 24px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            color: white;
+        }
+        
+        .device-selector h2 {
+            margin-bottom: 1rem;
+            font-size: 2rem;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .device-selector p {
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 2.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .device-options {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .device-option {
+            flex: 1;
+            min-width: 180px;
+            padding: 2.5rem 1.5rem;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            cursor: pointer;
+            transition: all 0.4s ease;
+            text-decoration: none;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .device-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--gradient-primary);
+            transition: left 0.4s ease;
+            z-index: -1;
+        }
+        
+        .device-option:hover::before {
+            left: 0;
+        }
+        
+        .device-option:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+        }
+        
+        .device-option .icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        .device-option h3 {
+            margin-bottom: 0.5rem;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .device-option p {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        /* 인터페이스 전환 */
+        .mobile-interface, .desktop-interface {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .mobile-interface.active, .desktop-interface.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 모바일 센서 연결 패널 */
+        .sensor-connection-panel {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 4rem 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .sensor-connection-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .sensor-connection-panel .container {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .connection-status {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem;
+            border-radius: 20px;
+            margin: 2rem 0;
+            backdrop-filter: blur(20px);
+        }
+        
+        .status-indicator {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--error-color);
+            display: inline-block;
+            margin-right: 12px;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 20px currentColor;
+        }
+        
+        .status-indicator.connected {
+            background: var(--success-color);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        
+        .big-connect-button {
+            background: var(--success-color);
+            color: white;
+            padding: 1.8rem 3.5rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.4rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3);
+        }
+        
+        .big-connect-button:hover {
+            background: #00e67a;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 255, 136, 0.4);
+        }
+        
+        .sensor-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+        
+        .sensor-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1.8rem;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            transition: var(--transition);
+        }
+        
+        .sensor-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .sensor-item h4 {
+            margin: 0 0 0.8rem 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .sensor-item p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+        
+        /* 게임 그리드 개선 */
+        .game-grid-desktop {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2.5rem;
+            margin-top: 3rem;
+        }
+        
+        .game-card-desktop {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.4s ease;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .game-card-desktop:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+        }
+        
+        .game-card-desktop .game-icon {
+            font-size: 4.5rem;
+            padding: 2.5rem;
+            text-align: center;
+            background: var(--gradient-primary);
+            color: white;
+            position: relative;
+        }
+        
+        .game-card-desktop .game-info {
+            padding: 2rem;
+        }
+        
+        .game-card-desktop h3 {
+            margin: 0 0 0.8rem 0;
+            color: #2d3748;
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+        
+        .game-card-desktop p {
+            margin: 0 0 1.5rem 0;
+            color: #718096;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        .play-button {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 1rem 2.5rem;
+            border: none;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1rem;
+        }
+        
+        .play-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .play-button:disabled {
+            background: linear-gradient(135deg, #cbd5e0, #a0aec0);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* 상태 패널 개선 */
+        .status-panel {
+            background: rgba(255,255,255,0.1) !important;
+            backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+        
+        .status-item {
+            text-align: center;
+            padding: 1rem;
+        }
+        
+        .status-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .status-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .status-label {
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+        
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--warning-color);
+        }
+        
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            .device-options {
+                flex-direction: column;
+            }
+            
+            .device-option {
+                min-width: auto;
+            }
+            
+            .sensor-info {
+                grid-template-columns: 1fr;
+            }
+            
+            .game-grid-desktop {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .sensor-connection-panel {
+                padding: 2rem 0;
+            }
+            
+            .big-connect-button {
+                padding: 1.5rem 2.5rem;
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 디바이스 감지 및 선택 -->
+    <div class="device-detector" id="deviceDetector">
+        <div class="device-selector">
+            <h2>🎮 센서 게임 허브</h2>
+            <p>어떤 기기로 접속하셨나요?</p>
+            <div class="device-options">
+                <a href="#" class="device-option" onclick="selectDevice('mobile')">
+                    <div class="icon">📱</div>
+                    <h3>모바일 기기</h3>
+                    <p>센서 연결 및 조종</p>
+                </a>
+                <a href="#" class="device-option" onclick="selectDevice('desktop')">
+                    <div class="icon">🖥️</div>
+                    <h3>PC/태블릿</h3>
+                    <p>게임 화면 및 선택</p>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모바일 인터페이스 -->
+    <div class="mobile-interface" id="mobileInterface">
+        <div class="sensor-connection-panel">
+            <div class="container">
+                <h1>📱 센서 연결 센터</h1>
+                <p>휴대폰 센서를 PC 게임에 연결하세요</p>
+                
+                <div class="connection-status">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span id="connectionStatusText">센서 연결 대기중...</span>
+                </div>
+                
+                <a href="/sensor-client" class="big-connect-button" id="connectButton">
+                    🎮 센서 연결하기
+                </a>
+                
+                <div class="sensor-info">
+                    <div class="sensor-item">
+                        <h4>🔄 자이로스코프</h4>
+                        <p>기기 회전 감지</p>
+                    </div>
+                    <div class="sensor-item">
+                        <h4>📈 가속도계</h4>
+                        <p>움직임 및 흔들기 감지</p>
+                    </div>
+                    <div class="sensor-item">
+                        <h4>🧭 방향 센서</h4>
+                        <p>기기 방향 감지</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="container" style="padding: 3rem 0;">
+            <h2 style="text-align: center; margin-bottom: 3rem; font-size: 2rem;">💡 사용 방법</h2>
+            <div class="steps" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
+                <div class="step" style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.2);">
+                    <div class="step-number" style="width: 60px; height: 60px; background: var(--gradient-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; margin: 0 auto 1.5rem; color: white;">1</div>
+                    <h4 style="margin-bottom: 1rem; font-size: 1.3rem;">센서 연결</h4>
+                    <p style="opacity: 0.9; line-height: 1.6;">위 버튼을 눌러 센서를 연결하고 권한을 허용하세요</p>
+                </div>
+                <div class="step" style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.2);">
+                    <div class="step-number" style="width: 60px; height: 60px; background: var(--gradient-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; margin: 0 auto 1.5rem; color: white;">2</div>
+                    <h4 style="margin-bottom: 1rem; font-size: 1.3rem;">PC에서 게임 선택</h4>
+                    <p style="opacity: 0.9; line-height: 1.6;">PC나 태블릿에서 원하는 게임을 선택하세요</p>
+                </div>
+                <div class="step" style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.2);">
+                    <div class="step-number" style="width: 60px; height: 60px; background: var(--gradient-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; margin: 0 auto 1.5rem; color: white;">3</div>
+                    <h4 style="margin-bottom: 1rem; font-size: 1.3rem;">게임 플레이</h4>
+                    <p style="opacity: 0.9; line-height: 1.6;">휴대폰을 기울이고 움직여서 게임을 즐기세요</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 데스크톱 인터페이스 -->
+    <div class="desktop-interface" id="desktopInterface">
+        <!-- 헤더 -->
+        <header class="header">
+            <div class="container">
+                <div class="header-content">
+                    <div class="logo">
+                        <h1>🎮 센서 게임 허브</h1>
+                        <p>모바일 센서로 즐기는 게임 플랫폼</p>
+                    </div>
+                    <nav class="nav">
+                        <a href="#" class="nav-link" onclick="selectDevice('mobile')">📱 모바일 모드</a>
+                        <a href="/dashboard" class="nav-link">📊 대시보드</a>
+                        <a href="/docs" class="nav-link">📚 개발자 문서</a>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- 메인 컨텐츠 -->
+        <main class="main">
+            <!-- 센서 상태 패널 -->
+            <section class="sensor-status" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0;">
+                <div class="container">
+                    <div class="status-panel" style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);">
+                        <h3>📡 센서 연결 상태</h3>
+                        <div class="status-grid">
+                            <div class="status-item">
+                                <span class="status-icon" id="connectionStatus">🔴</span>
+                                <span class="status-text" id="connectionText">센서 연결 대기중</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">연결된 디바이스:</span>
+                                <span class="status-value" id="deviceCount">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">지연시간:</span>
+                                <span class="status-value" id="latency">-</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <p>📱 모바일 기기에서 센서를 연결하세요</p>
+                            <p style="font-size: 0.9rem; opacity: 0.8;">
+                                모바일 기기로 <strong>https://[현재IP]:8443</strong> 접속 후 모바일 모드 선택
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 게임 목록 -->
+            <section class="games-section" style="padding: 3rem 0;">
+                <div class="container">
+                    <div class="section-header">
+                        <h3>🎮 게임 라이브러리</h3>
+                        <p>센서가 연결되면 게임을 시작할 수 있습니다</p>
+                    </div>
+                    
+                    <div class="game-grid-desktop" id="gamesGrid">
+                        <!-- 게임 카드들이 동적으로 로드됩니다 -->
+                    </div>
+                    
+                    <div class="loading" id="gamesLoading">
+                        <div class="spinner"></div>
+                        <p>게임 목록을 불러오는 중...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 개발자 섹션 -->
+            <section class="developer-section" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 4rem 0; margin-top: 2rem;">
+                <div class="container">
+                    <div style="text-align: center; margin-bottom: 3rem;">
+                        <h3 style="font-size: 2.2rem; color: #2d3748; margin-bottom: 1rem;">👨‍💻 개발자를 위한 도구</h3>
+                        <p style="color: #718096; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">센서 게임 개발에 필요한 모든 도구와 리소스를 제공합니다</p>
+                    </div>
+                    <div class="developer-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2.5rem;">
+                        <div class="developer-card" style="background: white; padding: 2.5rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s ease; border: 1px solid rgba(0,0,0,0.05);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 50px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.1)'">
+                            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 2rem;">📚</div>
+                            <h4 style="color: #2d3748; margin-bottom: 1rem; font-size: 1.3rem;">개발자 문서</h4>
+                            <p style="color: #718096; margin-bottom: 2rem; line-height: 1.6;">센서 게임 개발을 위한 완벽한 가이드와 API 문서</p>
+                            <a href="/docs" class="btn btn-secondary" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none;">문서 보기</a>
+                        </div>
+                        <div class="developer-card" style="background: white; padding: 2.5rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s ease; border: 1px solid rgba(0,0,0,0.05);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 50px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.1)'">
+                            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 2rem;">⚙️</div>
+                            <h4 style="color: #2d3748; margin-bottom: 1rem; font-size: 1.3rem;">SDK 다운로드</h4>
+                            <p style="color: #718096; margin-bottom: 2rem; line-height: 1.6;">센서 데이터 처리를 위한 JavaScript SDK</p>
+                            <a href="/sdk" class="btn btn-secondary" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none;">SDK 다운로드</a>
+                        </div>
+                        <div class="developer-card" style="background: white; padding: 2.5rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s ease; border: 1px solid rgba(0,0,0,0.05);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 50px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.1)'">
+                            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #00ff88, #00e67a); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 2rem;">📊</div>
+                            <h4 style="color: #2d3748; margin-bottom: 1rem; font-size: 1.3rem;">실시간 대시보드</h4>
+                            <p style="color: #718096; margin-bottom: 2rem; line-height: 1.6;">센서 상태 및 성능 모니터링</p>
+                            <a href="/dashboard" class="btn btn-secondary" style="background: linear-gradient(135deg, #00ff88, #00e67a); color: white; border: none;">대시보드 열기</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 푸터 -->
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-info">
+                        <h4>센서 게임 허브 v2.0</h4>
+                        <p>모바일 센서를 활용한 게임 개발 플랫폼 (HTTPS 전용)</p>
+                    </div>
+                    <div class="footer-links">
+                        <a href="/docs">개발자 문서</a>
+                        <a href="/dashboard">대시보드</a>
+                        <a href="https://github.com/your-username/sensor-game-hub">GitHub</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        let currentDevice = null;
+        let ws = null;
+        let sensorConnected = false;
+        let games = [];
+
+        // 디바이스 선택
+        function selectDevice(deviceType) {
+            currentDevice = deviceType;
+            document.getElementById('deviceDetector').style.display = 'none';
+            
+            if (deviceType === 'mobile') {
+                document.getElementById('mobileInterface').classList.add('active');
+                // 모바일 환경에서 센서 연결 상태 확인
+                checkSensorConnection();
+            } else {
+                document.getElementById('desktopInterface').classList.add('active');
+                // 데스크톱 환경에서 WebSocket 연결 및 게임 로드
+                connectWebSocket();
+                loadGames();
+            }
+            
+            // 디바이스 선택을 로컬 스토리지에 저장
+            localStorage.setItem('selectedDevice', deviceType);
+        }
+
+        // 센서 연결 확인
+        function checkSensorConnection() {
+            if ('DeviceOrientationEvent' in window) {
+                document.getElementById('connectionStatusText').textContent = '센서 사용 가능 - 연결 버튼을 눌러주세요';
+                document.getElementById('statusIndicator').style.background = '#ffa502';
+            } else {
+                document.getElementById('connectionStatusText').textContent = '센서를 사용할 수 없습니다';
+                document.getElementById('statusIndicator').style.background = '#ff4757';
+            }
+        }
+
+        // WebSocket 연결
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function(event) {
+                console.log('WebSocket 연결됨');
+                ws.send(JSON.stringify({
+                    type: 'register_game_client',
+                    gameId: 'hub-client',
+                    gameName: '허브 클라이언트',
+                    requestedSensors: ['orientation', 'accelerometer', 'gyroscope']
+                }));
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                switch (data.type) {
+                    case 'sensor_device_connected':
+                        updateSensorStatus(true);
+                        break;
+                    case 'sensor_device_disconnected':
+                        updateSensorStatus(false);
+                        break;
+                    case 'sensor_data':
+                        // 센서 데이터 수신 (필요시 처리)
+                        break;
+                }
+            };
+            
+            ws.onclose = function(event) {
+                console.log('WebSocket 연결 종료');
+                updateSensorStatus(false);
+            };
+        }
+
+        // 센서 상태 업데이트
+        function updateSensorStatus(connected) {
+            sensorConnected = connected;
+            const statusIcon = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionText');
+            const deviceCount = document.getElementById('deviceCount');
+            
+            if (connected) {
+                statusIcon.textContent = '🟢';
+                statusText.textContent = '센서 연결됨';
+                deviceCount.textContent = '1';
+                
+                // 게임 버튼 활성화
+                document.querySelectorAll('.play-button').forEach(btn => {
+                    btn.disabled = false;
+                    btn.textContent = '게임 시작';
+                });
+            } else {
+                statusIcon.textContent = '🔴';
+                statusText.textContent = '센서 연결 대기중';
+                deviceCount.textContent = '0';
+                
+                // 게임 버튼 비활성화
+                document.querySelectorAll('.play-button').forEach(btn => {
+                    btn.disabled = true;
+                    btn.textContent = '센서 연결 필요';
+                });
+            }
+        }
+
+        // 게임 목록 로드
+        async function loadGames() {
+            try {
+                const response = await fetch('/api/games');
+                const result = await response.json();
+                
+                if (result.success) {
+                    games = result.games;
+                    renderGames();
+                }
+            } catch (error) {
+                console.error('게임 로드 실패:', error);
+            }
+            
+            document.getElementById('gamesLoading').style.display = 'none';
+        }
+
+        // 게임 렌더링
+        function renderGames() {
+            const gamesGrid = document.getElementById('gamesGrid');
+            gamesGrid.innerHTML = '';
+            
+            games.forEach(game => {
+                const gameCard = document.createElement('div');
+                gameCard.className = 'game-card-desktop';
+                gameCard.innerHTML = `
+                    <div class="game-icon">${game.icon}</div>
+                    <div class="game-info">
+                        <h3>${game.name}</h3>
+                        <p>${game.description}</p>
+                        <button class="play-button" onclick="playGame('${game.id}')" ${!sensorConnected ? 'disabled' : ''}>
+                            ${sensorConnected ? '게임 시작' : '센서 연결 필요'}
+                        </button>
+                    </div>
+                `;
+                gamesGrid.appendChild(gameCard);
+            });
+        }
+
+        // 게임 시작
+        function playGame(gameId) {
+            if (!sensorConnected) {
+                alert('센서를 먼저 연결해주세요!\n\n모바일 기기에서 이 URL에 접속하여 센서를 연결하세요.');
+                return;
+            }
+            
+            const game = games.find(g => g.id === gameId);
+            if (game) {
+                window.location.href = game.path;
+            }
+        }
+
+        // 자동 디바이스 감지
+        function autoDetectDevice() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            const savedDevice = localStorage.getItem('selectedDevice');
+            
+            if (savedDevice) {
+                selectDevice(savedDevice);
+                return;
+            }
+            
+            // 터치 지원 및 화면 크기로 모바일 감지
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent) ||
+                            (window.innerWidth <= 768 && 'ontouchstart' in window);
+            
+            if (isMobile) {
+                selectDevice('mobile');
+            } else {
+                selectDevice('desktop');
+            }
+        }
+
+        // 페이지 로드 시 자동 감지
+        window.addEventListener('load', function() {
+            // 강제로 디바이스 선택 화면 표시 (사용자가 선택할 수 있도록)
+            document.getElementById('deviceDetector').style.display = 'flex';
+            
+            // 현재 IP 주소 표시
+            const currentIP = window.location.hostname;
+            document.querySelectorAll('[data-current-ip]').forEach(el => {
+                el.textContent = el.textContent.replace('[현재IP]', currentIP);
+            });
+        });
+
+        // 디바이스 다시 선택
+        function showDeviceSelector() {
+            localStorage.removeItem('selectedDevice');
+            document.getElementById('deviceDetector').style.display = 'flex';
+            document.getElementById('mobileInterface').classList.remove('active');
+            document.getElementById('desktopInterface').classList.remove('active');
+        }
+    </script>
+</body>
+</html>

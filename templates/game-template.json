@@ -1,0 +1,30 @@
+{
+    "id": "{{GAME_ID}}",
+    "name": "{{GAME_NAME}}",
+    "description": "{{GAME_DESCRIPTION}}",
+    "author": "{{AUTHOR_NAME}}",
+    "version": "1.0.0",
+    "category": "{{GAME_CATEGORY}}",
+    "difficulty": "{{GAME_DIFFICULTY}}",
+    "icon": "{{GAME_ICON}}",
+    "sensorTypes": ["orientation"],
+    "minPlayers": 1,
+    "maxPlayers": 1,
+    "features": ["singleplayer", "sensor-control"],
+    "tags": ["mobile", "sensor", "casual"],
+    "screenshots": [],
+    "requirements": {
+        "sensors": ["orientation"],
+        "permissions": ["devicemotion", "deviceorientation"]
+    },
+    "settings": {
+        "canvas": {
+            "width": 600,
+            "height": 400
+        },
+        "controls": {
+            "sensitivity": 0.8,
+            "smoothing": 3
+        }
+    }
+}

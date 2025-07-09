@@ -1,0 +1,48 @@
+{
+  "name": "sensor-game-hub",
+  "version": "2.0.0",
+  "description": "센서 기반 게임 허브 플랫폼 (HTTPS 전용) - 안드로이드/아이폰 모든 기기에서 센서 게임을 즐길 수 있는 통합 플랫폼",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo 'No build step required'",
+    "setup-ssl": "./setup-ssl.sh",
+    "trust-cert": "./trust-certificate.sh",
+    "test": "echo \"테스트 스크립트가 아직 작성되지 않았습니다.\" && exit 1",
+    "help": "echo \"HTTPS 전용 센서 게임 허브 v2.0\n\n사용법:\n  npm start       - 서버 시작 (자동 SSL 설정)\n  npm run setup-ssl - SSL 인증서 수동 생성\n\n접속 URL:\n  https://localhost:8443\n\n💡 모바일에서는 센서 연결, PC에서는 게임 선택!\""
+  },
+  "keywords": [
+    "sensor",
+    "mobile",
+    "game",
+    "websocket",
+    "gyroscope",
+    "accelerometer",
+    "hub",
+    "platform",
+    "https",
+    "ssl",
+    "ios",
+    "android"
+  ],
+  "author": "Sensor Game Hub Team",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "selfsigned": "^2.1.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/sensor-game-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/sensor-game-hub/issues"
+  },
+  "homepage": "https://your-app-name.onrender.com"
+}

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎱 기울기 볼 굴리기 - 샘플 게임</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0f0f23, #1a1a2e);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .game-header h1 {
+            margin: 0;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .game-header p {
+            margin: 10px 0;
+            color: #b0b0b0;
+        }
+
+        #gameCanvas {
+            border: 2px solid #333366;
+            border-radius: 10px;
+            background: linear-gradient(45deg, #16213e, #1a1a2e);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .ui-panel {
+            background: rgba(22, 33, 62, 0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #333366;
+            backdrop-filter: blur(10px);
+        }
+
+        .score {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .sensor-status {
+            font-size: 0.9rem;
+            color: #ffaa00;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #333366;
+            z-index: 200;
+            max-width: 400px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+
+        .instructions ul {
+            text-align: left;
+            color: #b0b0b0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .game-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            #gameCanvas {
+                max-width: 100%;
+                height: auto;
+            }
+            
+            .game-ui {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- 게임 헤더 -->
+        <div class="game-header">
+            <h1>🎱 기울기 볼 굴리기</h1>
+            <p>휴대폰을 기울여서 공을 목표 지점으로 굴려보세요!</p>
+        </div>
+
+        <!-- 게임 캔버스 -->
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+        <!-- 게임 UI -->
+        <div class="game-ui">
+            <div class="ui-panel">
+                <div class="score">점수: <span id="scoreValue">0</span></div>
+            </div>
+            <div class="ui-panel">
+                <div class="sensor-status" id="sensorStatus">센서 연결 대기중...</div>
+            </div>
+        </div>
+
+        <!-- 조작 버튼 -->
+        <div class="controls">
+            <button class="btn" onclick="window.game && window.game.calibrate && window.game.calibrate()">센서 보정</button>
+            <button class="btn" onclick="window.game && window.game.restart && window.game.restart()">다시 시작</button>
+            <button class="btn" onclick="window.open('/', '_blank')">🏠 허브로</button>
+        </div>
+
+        <!-- 게임 설명 -->
+        <div class="instructions" id="instructions">
+            <h3>🎮 게임 방법</h3>
+            <ul>
+                <li><strong>📱 센서 모드</strong>: 휴대폰을 기울여서 공을 조작</li>
+                <li><strong>⌨️ 키보드 모드</strong>: WASD 또는 화살표 키 사용</li>
+                <li><strong>🎯 목표</strong>: 파란 공을 초록색 목표 지점으로 이동</li>
+                <li><strong>⚠️ 주의</strong>: 빨간 장애물을 피하세요!</li>
+            </ul>
+            <button class="btn" onclick="window.game && window.game.hideInstructions && window.game.hideInstructions()">게임 시작</button>
+        </div>
+    </div>
+
+    <!-- SDK 및 게임 스크립트 로드 -->
+    <script src="../../sdk/sensor-game-sdk.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

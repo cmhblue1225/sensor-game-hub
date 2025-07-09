@@ -1,0 +1,30 @@
+{
+    "id": "sample-tilt-ball",
+    "name": "기울기 볼 굴리기",
+    "description": "휴대폰을 기울여서 공을 목표 지점으로 굴리는 물리 퍼즐 게임입니다. 빨간 장애물을 피하고 초록색 목표에 도달하세요!",
+    "author": "센서 게임 허브 팀",
+    "version": "1.0.0",
+    "category": "puzzle",
+    "difficulty": "easy",
+    "icon": "🎱",
+    "sensorTypes": ["orientation"],
+    "minPlayers": 1,
+    "maxPlayers": 1,
+    "features": ["singleplayer", "physics", "levels"],
+    "controls": {
+        "orientation": "휴대폰을 기울여서 공을 이동시키세요",
+        "simulation": "WASD 또는 화살표 키로 조작 가능"
+    },
+    "instructions": "목표: 파란 공을 초록색 목표 지점으로 이동시키세요. 빨간 장애물을 피하고, 레벨이 올라갈수록 더 많은 장애물이 나타납니다.",
+    "screenshots": [],
+    "tags": ["physics", "puzzle", "casual", "mobile"],
+    "requirements": {
+        "sensors": ["orientation"],
+        "permissions": ["deviceorientation"]
+    },
+    "gameplay": {
+        "objective": "공을 목표 지점으로 이동시키기",
+        "scoring": "목표 도달 시 100점, 장애물 충돌 시 -10점",
+        "levels": "무한 레벨 (자동 생성)"
+    }
+}

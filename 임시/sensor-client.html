@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>센서 데이터 전송</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* 메인으로 돌아가기 버튼 */
+        .back-to-main {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: #333;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            z-index: 100;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-to-main:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .status-section {
+            margin-bottom: 25px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #007aff;
+        }
+
+        .status-label {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .status-value {
+            font-weight: 600;
+            color: #007aff;
+        }
+
+        .status-value.connected {
+            color: #28a745;
+        }
+
+        .status-value.disconnected {
+            color: #dc3545;
+        }
+
+        .sensor-data {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .sensor-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .sensor-values {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .sensor-value {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .sensor-value-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .sensor-value-number {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #007aff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .permission-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .permission-text {
+            color: #856404;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .gps-data {
+            grid-template-columns: 1fr;
+        }
+
+        .info-section {
+            background: #e3f2fd;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-text {
+            color: #1976d2;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+            
+            .sensor-values {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 메인으로 돌아가기 버튼 -->
+    <a href="/" class="back-to-main">🏠 메인으로</a>
+    <div class="container">
+        <h1>📱 센서 데이터 전송</h1>
+        
+        <div class="info-section">
+            <div class="info-text">
+                iPhone 15 Pro Max의 센서 데이터를 실시간으로 전송합니다
+            </div>
+        </div>
+
+        <div class="status-section">
+            <div class="status-item">
+                <span class="status-label">서버 연결</span>
+                <span class="status-value disconnected" id="connectionStatus">연결 안됨</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">센서 상태</span>
+                <span class="status-value" id="sensorStatus">대기 중</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">전송 횟수</span>
+                <span class="status-value" id="dataCount">0</span>
+            </div>
+        </div>
+
+        <div class="permission-section" id="permissionSection">
+            <div class="permission-text" id="permissionText">
+                센서 데이터 접근을 위해 권한이 필요합니다
+            </div>
+            <div class="permission-text" style="font-size: 12px; margin-top: 10px; color: #856404;">
+                ⚠️ iOS에서는 HTTPS 연결이 필요합니다. 브라우저에서 보안 경고가 나오면 "고급" → "안전하지 않음으로 이동"을 클릭하세요.
+            </div>
+            <button class="btn btn-primary" id="permissionBtn" onclick="requestPermissions()">권한 요청</button>
+            <button class="btn btn-secondary" id="skipPermissionBtn" onclick="skipPermissions()" style="display: none;">권한 없이 시작</button>
+        </div>
+
+        <div class="sensor-data">
+            <div class="sensor-title">🔄 자이로스코프 (°/s)</div>
+            <div class="sensor-values">
+                <div class="sensor-value">
+                    <div class="sensor-value-label">X축</div>
+                    <div class="sensor-value-number" id="gyroX">0.0</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Y축</div>
+                    <div class="sensor-value-number" id="gyroY">0.0</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Z축</div>
+                    <div class="sensor-value-number" id="gyroZ">0.0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sensor-data">
+            <div class="sensor-title">⚡ 가속도계 (m/s²)</div>
+            <div class="sensor-values">
+                <div class="sensor-value">
+                    <div class="sensor-value-label">X축</div>
+                    <div class="sensor-value-number" id="accelX">0.0</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Y축</div>
+                    <div class="sensor-value-number" id="accelY">0.0</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Z축</div>
+                    <div class="sensor-value-number" id="accelZ">0.0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sensor-data">
+            <div class="sensor-title">🧭 방향 (도)</div>
+            <div class="sensor-values">
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Alpha</div>
+                    <div class="sensor-value-number" id="orientAlpha">0.0</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Beta</div>
+                    <div class="sensor-value-number" id="orientBeta">0.0</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">Gamma</div>
+                    <div class="sensor-value-number" id="orientGamma">0.0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sensor-data">
+            <div class="sensor-title">📍 GPS 위치</div>
+            <div class="sensor-values gps-data">
+                <div class="sensor-value">
+                    <div class="sensor-value-label">위도</div>
+                    <div class="sensor-value-number" id="gpsLat">-</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">경도</div>
+                    <div class="sensor-value-number" id="gpsLng">-</div>
+                </div>
+                <div class="sensor-value">
+                    <div class="sensor-value-label">정확도</div>
+                    <div class="sensor-value-number" id="gpsAccuracy">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="startBtn" onclick="startSensors()">센서 시작</button>
+            <button class="btn btn-secondary" id="stopBtn" onclick="stopSensors()" disabled>센서 중지</button>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let isConnected = false;
+        let sensorActive = false;
+        let dataCount = 0;
+        let deviceId = 'iPhone-15-Pro-Max-' + Math.random().toString(36).substr(2, 9);
+
+        // 센서 데이터 저장 변수
+        let sensorData = {
+            gyroscope: { x: 0, y: 0, z: 0 },
+            accelerometer: { x: 0, y: 0, z: 0 },
+            orientation: { alpha: 0, beta: 0, gamma: 0 },
+            gps: { latitude: null, longitude: null, accuracy: null }
+        };
+
+        // 연결 시도
+        function connectToServer() {
+            try {
+                const serverHost = window.location.hostname || 'localhost';
+                let serverPort, protocol;
+                
+                if (window.location.protocol === 'https:') {
+                    serverPort = window.location.port || '8443';
+                    protocol = 'wss';
+                } else {
+                    serverPort = window.location.port || '8080';
+                    protocol = 'ws';
+                }
+                
+                socket = new WebSocket(`${protocol}://${serverHost}:${serverPort}`);
+                
+                socket.onopen = function() {
+                    isConnected = true;
+                    updateConnectionStatus();
+                    
+                    // 장치 등록
+                    socket.send(JSON.stringify({
+                        type: 'device_register',
+                        deviceId: deviceId,
+                        deviceType: 'iPhone 15 Pro Max',
+                        userAgent: navigator.userAgent,
+                        timestamp: Date.now()
+                    }));
+                };
+                
+                socket.onclose = function() {
+                    isConnected = false;
+                    updateConnectionStatus();
+                };
+                
+                socket.onerror = function(error) {
+                    console.error('WebSocket 오류:', error);
+                    updateConnectionStatus();
+                };
+                
+            } catch (error) {
+                console.error('연결 실패:', error);
+                updateConnectionStatus();
+            }
+        }
+
+        function updateConnectionStatus() {
+            const statusElement = document.getElementById('connectionStatus');
+            if (isConnected) {
+                statusElement.textContent = '연결됨';
+                statusElement.className = 'status-value connected';
+            } else {
+                statusElement.textContent = '연결 안됨';
+                statusElement.className = 'status-value disconnected';
+            }
+        }
+
+        // 권한 요청 함수
+        async function requestPermissions() {
+            try {
+                let motionPermissionGranted = false;
+                let orientationPermissionGranted = false;
+                
+                // iOS 13+ DeviceMotionEvent 권한 요청
+                if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                    console.log('DeviceMotionEvent.requestPermission 사용 가능');
+                    const motionPermission = await DeviceMotionEvent.requestPermission();
+                    console.log('모션 권한 결과:', motionPermission);
+                    if (motionPermission === 'granted') {
+                        motionPermissionGranted = true;
+                    } else {
+                        console.log('모션 센서 권한 거부됨');
+                        document.getElementById('skipPermissionBtn').style.display = 'inline-block';
+                        document.getElementById('permissionText').innerHTML = 
+                            '모션 센서 권한이 거부되었습니다.<br>권한 없이 시작하거나 Safari 설정에서 권한을 허용해주세요.';
+                    }
+                } else {
+                    console.log('DeviceMotionEvent.requestPermission 사용 불가능');
+                    motionPermissionGranted = true; // 오래된 iOS 버전에서는 권한 불필요
+                }
+
+                // iOS 13+ DeviceOrientationEvent 권한 요청
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    console.log('DeviceOrientationEvent.requestPermission 사용 가능');
+                    const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                    console.log('방향 권한 결과:', orientationPermission);
+                    if (orientationPermission === 'granted') {
+                        orientationPermissionGranted = true;
+                    } else {
+                        console.log('방향 센서 권한 거부됨');
+                        document.getElementById('skipPermissionBtn').style.display = 'inline-block';
+                        document.getElementById('permissionText').innerHTML = 
+                            '방향 센서 권한이 거부되었습니다.<br>권한 없이 시작하거나 Safari 설정에서 권한을 허용해주세요.';
+                    }
+                } else {
+                    console.log('DeviceOrientationEvent.requestPermission 사용 불가능');
+                    orientationPermissionGranted = true; // 오래된 iOS 버전에서는 권한 불필요
+                }
+
+                // GPS 권한 요청
+                if ("geolocation" in navigator) {
+                    try {
+                        const position = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                enableHighAccuracy: true,
+                                timeout: 10000,
+                                maximumAge: 0
+                            });
+                        });
+                        console.log('GPS 권한 허용됨');
+                        
+                        if (motionPermissionGranted && orientationPermissionGranted) {
+                            document.getElementById('permissionSection').style.display = 'none';
+                            setupSensors();
+                        }
+                    } catch (error) {
+                        console.error('GPS 권한 오류:', error);
+                        document.getElementById('skipPermissionBtn').style.display = 'inline-block';
+                        document.getElementById('permissionText').innerHTML = 
+                            'GPS 권한이 거부되었습니다.<br>권한 없이 시작하거나 브라우저 설정에서 위치 권한을 허용해주세요.';
+                    }
+                } else {
+                    console.log('Geolocation 사용 불가능');
+                    if (motionPermissionGranted && orientationPermissionGranted) {
+                        document.getElementById('permissionSection').style.display = 'none';
+                        setupSensors();
+                    }
+                }
+
+            } catch (error) {
+                console.error('권한 요청 오류:', error);
+                document.getElementById('skipPermissionBtn').style.display = 'inline-block';
+                document.getElementById('permissionText').innerHTML = 
+                    '권한 요청 중 오류가 발생했습니다.<br>오류: ' + error.message + '<br>권한 없이 시작해보세요.';
+            }
+        }
+
+        function setupSensors() {
+            // 자이로스코프 및 가속도계 설정
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', handleMotion, false);
+            }
+
+            // 방향 센서 설정
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleOrientation, false);
+            }
+
+            // GPS 위치 추적 설정
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    handleGPS,
+                    function(error) {
+                        console.error('GPS 오류:', error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    }
+                );
+            }
+
+            document.getElementById('sensorStatus').textContent = '준비됨';
+            document.getElementById('sensorStatus').className = 'status-value connected';
+        }
+
+        function handleMotion(event) {
+            if (!sensorActive) return;
+
+            const acceleration = event.accelerationIncludingGravity;
+            const rotationRate = event.rotationRate;
+
+            if (acceleration) {
+                sensorData.accelerometer = {
+                    x: acceleration.x || 0,
+                    y: acceleration.y || 0,
+                    z: acceleration.z || 0
+                };
+                
+                document.getElementById('accelX').textContent = acceleration.x?.toFixed(2) || '0.0';
+                document.getElementById('accelY').textContent = acceleration.y?.toFixed(2) || '0.0';
+                document.getElementById('accelZ').textContent = acceleration.z?.toFixed(2) || '0.0';
+            }
+
+            if (rotationRate) {
+                sensorData.gyroscope = {
+                    x: rotationRate.alpha || 0,
+                    y: rotationRate.beta || 0,
+                    z: rotationRate.gamma || 0
+                };
+                
+                document.getElementById('gyroX').textContent = rotationRate.alpha?.toFixed(2) || '0.0';
+                document.getElementById('gyroY').textContent = rotationRate.beta?.toFixed(2) || '0.0';
+                document.getElementById('gyroZ').textContent = rotationRate.gamma?.toFixed(2) || '0.0';
+            }
+        }
+
+        function handleOrientation(event) {
+            if (!sensorActive) return;
+
+            sensorData.orientation = {
+                alpha: event.alpha || 0,
+                beta: event.beta || 0,
+                gamma: event.gamma || 0
+            };
+            
+            document.getElementById('orientAlpha').textContent = event.alpha?.toFixed(1) || '0.0';
+            document.getElementById('orientBeta').textContent = event.beta?.toFixed(1) || '0.0';
+            document.getElementById('orientGamma').textContent = event.gamma?.toFixed(1) || '0.0';
+        }
+
+        function handleGPS(position) {
+            sensorData.gps = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            };
+            
+            document.getElementById('gpsLat').textContent = position.coords.latitude.toFixed(6);
+            document.getElementById('gpsLng').textContent = position.coords.longitude.toFixed(6);
+            document.getElementById('gpsAccuracy').textContent = position.coords.accuracy.toFixed(1) + 'm';
+        }
+
+        function startSensors() {
+            if (!isConnected) {
+                alert('서버에 연결되지 않았습니다.');
+                return;
+            }
+
+            sensorActive = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('sensorStatus').textContent = '전송 중';
+            document.getElementById('sensorStatus').className = 'status-value connected';
+
+            // 센서 데이터 전송 시작 (10Hz)
+            setInterval(sendSensorData, 100);
+        }
+
+        function stopSensors() {
+            sensorActive = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('sensorStatus').textContent = '중지됨';
+            document.getElementById('sensorStatus').className = 'status-value';
+        }
+
+        function sendSensorData() {
+            if (!sensorActive || !isConnected) return;
+
+            const data = {
+                type: 'sensor_data',
+                deviceId: deviceId,
+                timestamp: Date.now(),
+                data: sensorData
+            };
+
+            socket.send(JSON.stringify(data));
+            dataCount++;
+            document.getElementById('dataCount').textContent = dataCount;
+        }
+
+        function skipPermissions() {
+            console.log('권한 없이 센서 시작 시도');
+            document.getElementById('permissionSection').style.display = 'none';
+            setupSensors();
+        }
+
+        function checkSecureContext() {
+            if (!window.isSecureContext) {
+                document.getElementById('permissionText').innerHTML = 
+                    '⚠️ 보안 컨텍스트가 아닙니다. iOS 센서 권한을 위해 HTTPS 연결이 필요합니다.<br>' +
+                    '다음 URL로 접속해보세요: <strong>https://' + window.location.hostname + ':8443' + window.location.pathname + '</strong>';
+                return false;
+            }
+            return true;
+        }
+
+        function detectDeviceType() {
+            const userAgent = navigator.userAgent;
+            const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+            const isAndroid = /Android/.test(userAgent);
+            
+            console.log('사용자 에이전트:', userAgent);
+            console.log('iOS 기기:', isIOS);
+            console.log('안드로이드 기기:', isAndroid);
+            console.log('보안 컨텍스트:', window.isSecureContext);
+            
+            return { isIOS, isAndroid };
+        }
+
+        // 페이지 로드 시 연결 시도
+        window.onload = function() {
+            connectToServer();
+            
+            const deviceInfo = detectDeviceType();
+            
+            if (deviceInfo.isIOS && !window.isSecureContext) {
+                checkSecureContext();
+            } else if (!deviceInfo.isIOS) {
+                // iOS가 아닌 경우 권한 없이 시작 버튼 표시
+                document.getElementById('skipPermissionBtn').style.display = 'inline-block';
+            }
+        };
+
+        // 페이지 종료 시 연결 해제
+        window.onbeforeunload = function() {
+            if (socket) {
+                socket.close();
+            }
+        };
+    </script>
+</body>
+</html>

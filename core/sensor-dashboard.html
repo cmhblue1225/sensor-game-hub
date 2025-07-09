@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 센서 실시간 대시보드 - 센서 게임 허브</title>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --background-color: #0f0f23;
+            --surface-color: #1a1a2e;
+            --card-color: #16213e;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --success-color: #00ff88;
+            --warning-color: #ffaa00;
+            --error-color: #ff4757;
+            --border-color: #333366;
+            --gradient-primary: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--gradient-primary);
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .status-bar {
+            background: var(--card-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .status-item {
+            text-align: center;
+        }
+
+        .status-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-value.connected {
+            color: var(--success-color);
+        }
+
+        .status-value.disconnected {
+            color: var(--error-color);
+        }
+
+        .status-value.warning {
+            color: var(--warning-color);
+        }
+
+        .status-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .sensor-card {
+            background: var(--card-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .sensor-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sensor-values {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .sensor-value {
+            background: var(--surface-color);
+            border-radius: calc(var(--border-radius) / 2);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .sensor-value-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .sensor-value-number {
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .sensor-chart {
+            height: 200px;
+            background: var(--surface-color);
+            border-radius: calc(var(--border-radius) / 2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .visual-indicators {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .tilt-indicator {
+            background: var(--card-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .tilt-circle {
+            width: 200px;
+            height: 200px;
+            border: 3px solid var(--border-color);
+            border-radius: 50%;
+            margin: 1rem auto;
+            position: relative;
+            background: var(--surface-color);
+        }
+
+        .tilt-dot {
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: var(--transition);
+            box-shadow: 0 0 20px var(--primary-color);
+        }
+
+        .gyro-indicator {
+            background: var(--card-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .gyro-circles {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .gyro-circle {
+            width: 60px;
+            height: 60px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            position: relative;
+            background: var(--surface-color);
+        }
+
+        .gyro-needle {
+            width: 2px;
+            height: 25px;
+            background: var(--warning-color);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            transition: var(--transition);
+        }
+
+        .controls {
+            background: var(--card-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-block;
+            margin: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--surface-color);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .connection-log {
+            background: var(--surface-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-top: 2rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem;
+        }
+
+        .log-entry.info {
+            color: var(--text-primary);
+        }
+
+        .log-entry.success {
+            color: var(--success-color);
+        }
+
+        .log-entry.error {
+            color: var(--error-color);
+        }
+
+        .log-entry.warning {
+            color: var(--warning-color);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .sensor-values {
+                grid-template-columns: 1fr;
+            }
+            
+            .visual-indicators {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 헤더 -->
+    <div class="header">
+        <div style="position: absolute; top: 2rem; left: 2rem;">
+            <a href="/" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                🏠 허브로 돌아가기
+            </a>
+        </div>
+        <h1>📊 센서 실시간 대시보드</h1>
+        <p>모바일 센서 데이터를 실시간으로 모니터링합니다</p>
+    </div>
+
+    <div class="container">
+        <!-- 연결 상태 바 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-value disconnected" id="connectionStatus">🔴</div>
+                <div class="status-label">서버 연결</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="deviceCount">0</div>
+                <div class="status-label">연결된 디바이스</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="dataRate">0</div>
+                <div class="status-label">데이터/초</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="totalData">0</div>
+                <div class="status-label">총 수신</div>
+            </div>
+        </div>
+
+        <!-- 센서 데이터 카드들 -->
+        <div class="dashboard-grid">
+            <!-- 방향 센서 카드 -->
+            <div class="sensor-card">
+                <h3>🧭 방향 센서 (DeviceOrientationEvent)</h3>
+                <div class="sensor-values">
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Alpha (Z축)</div>
+                        <div class="sensor-value-number" id="orientAlpha">0.0°</div>
+                    </div>
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Beta (X축)</div>
+                        <div class="sensor-value-number" id="orientBeta">0.0°</div>
+                    </div>
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Gamma (Y축)</div>
+                        <div class="sensor-value-number" id="orientGamma">0.0°</div>
+                    </div>
+                </div>
+                <div class="sensor-chart">
+                    <canvas class="chart-canvas" id="orientationChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 가속도계 카드 -->
+            <div class="sensor-card">
+                <h3>⚡ 가속도계 (DeviceMotionEvent)</h3>
+                <div class="sensor-values">
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">X축</div>
+                        <div class="sensor-value-number" id="accelX">0.0</div>
+                    </div>
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Y축</div>
+                        <div class="sensor-value-number" id="accelY">0.0</div>
+                    </div>
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Z축</div>
+                        <div class="sensor-value-number" id="accelZ">0.0</div>
+                    </div>
+                </div>
+                <div class="sensor-chart">
+                    <canvas class="chart-canvas" id="accelerometerChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 자이로스코프 카드 -->
+            <div class="sensor-card">
+                <h3>🔄 자이로스코프 (DeviceMotionEvent)</h3>
+                <div class="sensor-values">
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Alpha</div>
+                        <div class="sensor-value-number" id="gyroAlpha">0.0</div>
+                    </div>
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Beta</div>
+                        <div class="sensor-value-number" id="gyroBeta">0.0</div>
+                    </div>
+                    <div class="sensor-value">
+                        <div class="sensor-value-label">Gamma</div>
+                        <div class="sensor-value-number" id="gyroGamma">0.0</div>
+                    </div>
+                </div>
+                <div class="sensor-chart">
+                    <canvas class="chart-canvas" id="gyroscopeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 시각적 인디케이터 -->
+        <div class="visual-indicators">
+            <!-- 기울기 인디케이터 -->
+            <div class="tilt-indicator">
+                <h3>📱 기기 기울기</h3>
+                <div class="tilt-circle">
+                    <div class="tilt-dot" id="tiltDot"></div>
+                </div>
+                <p>Gamma: <span id="tiltGamma">0°</span> | Beta: <span id="tiltBeta">0°</span></p>
+            </div>
+
+            <!-- 자이로스코프 인디케이터 -->
+            <div class="gyro-indicator">
+                <h3>🌀 회전 속도</h3>
+                <div class="gyro-circles">
+                    <div class="gyro-circle">
+                        <div class="gyro-needle" id="gyroNeedleX"></div>
+                        <div style="margin-top: 70px; font-size: 0.8rem;">X</div>
+                    </div>
+                    <div class="gyro-circle">
+                        <div class="gyro-needle" id="gyroNeedleY"></div>
+                        <div style="margin-top: 70px; font-size: 0.8rem;">Y</div>
+                    </div>
+                    <div class="gyro-circle">
+                        <div class="gyro-needle" id="gyroNeedleZ"></div>
+                        <div style="margin-top: 70px; font-size: 0.8rem;">Z</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 컨트롤 패널 -->
+        <div class="controls">
+            <h3>🎮 컨트롤 패널</h3>
+            <a href="/" class="btn btn-secondary">🏠 허브로 돌아가기</a>
+            <a href="/sensor-client" class="btn btn-primary">📱 센서 클라이언트</a>
+            <button class="btn btn-secondary" onclick="clearLog()">🗑️ 로그 지우기</button>
+            <button class="btn btn-secondary" onclick="exportData()">💾 데이터 내보내기</button>
+        </div>
+
+        <!-- 연결 로그 -->
+        <div class="connection-log" id="connectionLog">
+            <div class="log-entry info">📊 센서 대시보드 초기화 완료</div>
+            <div class="log-entry warning">⚠️ 센서 데이터를 받으려면 모바일 디바이스를 연결하세요</div>
+        </div>
+    </div>
+
+    <script>
+        // 전역 변수
+        let ws = null;
+        let isConnected = false;
+        let sensorData = {
+            orientation: { alpha: 0, beta: 0, gamma: 0 },
+            accelerometer: { x: 0, y: 0, z: 0 },
+            gyroscope: { alpha: 0, beta: 0, gamma: 0 }
+        };
+        let charts = {};
+        let deviceCount = 0;
+        let dataCount = 0;
+        let dataRate = 0;
+        let lastSecondData = 0;
+
+        // WebSocket 연결
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            addLog('🔌 WebSocket 연결 시도: ' + wsUrl, 'info');
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                isConnected = true;
+                updateConnectionStatus();
+                addLog('✅ 서버 연결 성공', 'success');
+                
+                // 대시보드 클라이언트로 등록
+                ws.send(JSON.stringify({
+                    type: 'register_dashboard',
+                    timestamp: Date.now()
+                }));
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleServerMessage(data);
+                } catch (error) {
+                    addLog('❌ 메시지 파싱 오류: ' + error.message, 'error');
+                }
+            };
+            
+            ws.onclose = function() {
+                isConnected = false;
+                updateConnectionStatus();
+                addLog('🔌 서버 연결 끊김', 'warning');
+                
+                // 3초 후 재연결 시도
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = function(error) {
+                addLog('❌ WebSocket 오류: ' + error, 'error');
+            };
+        }
+
+        // 서버 메시지 처리
+        function handleServerMessage(data) {
+            switch (data.type) {
+                case 'sensor_data':
+                    updateSensorData(data.sensorData);
+                    dataCount++;
+                    lastSecondData++;
+                    break;
+                    
+                case 'sensor_device_connected':
+                    deviceCount++;
+                    updateDeviceCount();
+                    addLog('📱 센서 디바이스 연결: ' + data.deviceId, 'success');
+                    break;
+                    
+                case 'sensor_device_disconnected':
+                    deviceCount = Math.max(0, deviceCount - 1);
+                    updateDeviceCount();
+                    addLog('📱 센서 디바이스 연결 해제: ' + data.deviceId, 'warning');
+                    break;
+                    
+                case 'dashboard_registered':
+                    addLog('📊 대시보드 등록 완료', 'success');
+                    break;
+            }
+        }
+
+        // 센서 데이터 업데이트
+        function updateSensorData(data) {
+            if (!data) return;
+            
+            // 방향 센서 업데이트
+            if (data.orientation) {
+                sensorData.orientation = data.orientation;
+                document.getElementById('orientAlpha').textContent = data.orientation.alpha.toFixed(1) + '°';
+                document.getElementById('orientBeta').textContent = data.orientation.beta.toFixed(1) + '°';
+                document.getElementById('orientGamma').textContent = data.orientation.gamma.toFixed(1) + '°';
+                
+                updateTiltIndicator(data.orientation.gamma, data.orientation.beta);
+            }
+            
+            // 가속도계 업데이트
+            if (data.accelerometer) {
+                sensorData.accelerometer = data.accelerometer;
+                document.getElementById('accelX').textContent = data.accelerometer.x.toFixed(2);
+                document.getElementById('accelY').textContent = data.accelerometer.y.toFixed(2);
+                document.getElementById('accelZ').textContent = data.accelerometer.z.toFixed(2);
+            }
+            
+            // 자이로스코프 업데이트
+            if (data.gyroscope) {
+                sensorData.gyroscope = data.gyroscope;
+                document.getElementById('gyroAlpha').textContent = data.gyroscope.alpha.toFixed(2);
+                document.getElementById('gyroBeta').textContent = data.gyroscope.beta.toFixed(2);
+                document.getElementById('gyroGamma').textContent = data.gyroscope.gamma.toFixed(2);
+                
+                updateGyroIndicator(data.gyroscope);
+            }
+            
+            // 차트 업데이트
+            updateCharts();
+        }
+
+        // 기울기 인디케이터 업데이트
+        function updateTiltIndicator(gamma, beta) {
+            const tiltDot = document.getElementById('tiltDot');
+            const maxOffset = 85; // 최대 이동 거리
+            
+            const x = (gamma / 45) * maxOffset;
+            const y = (beta / 45) * maxOffset;
+            
+            tiltDot.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+            
+            document.getElementById('tiltGamma').textContent = gamma.toFixed(1) + '°';
+            document.getElementById('tiltBeta').textContent = beta.toFixed(1) + '°';
+        }
+
+        // 자이로스코프 인디케이터 업데이트
+        function updateGyroIndicator(gyro) {
+            const needleX = document.getElementById('gyroNeedleX');
+            const needleY = document.getElementById('gyroNeedleY');
+            const needleZ = document.getElementById('gyroNeedleZ');
+            
+            const scaleAlpha = (gyro.alpha / 360) * 360;
+            const scaleBeta = (gyro.beta / 360) * 360;
+            const scaleGamma = (gyro.gamma / 360) * 360;
+            
+            needleX.style.transform = `translate(-50%, -100%) rotate(${scaleAlpha}deg)`;
+            needleY.style.transform = `translate(-50%, -100%) rotate(${scaleBeta}deg)`;
+            needleZ.style.transform = `translate(-50%, -100%) rotate(${scaleGamma}deg)`;
+        }
+
+        // 차트 업데이트 (간단한 실시간 그래프)
+        function updateCharts() {
+            // 차트 구현은 복잡하므로 일단 생략하고 나중에 추가
+        }
+
+        // 연결 상태 업데이트
+        function updateConnectionStatus() {
+            const statusElement = document.getElementById('connectionStatus');
+            if (isConnected) {
+                statusElement.textContent = '🟢';
+                statusElement.className = 'status-value connected';
+            } else {
+                statusElement.textContent = '🔴';
+                statusElement.className = 'status-value disconnected';
+            }
+        }
+
+        // 디바이스 수 업데이트
+        function updateDeviceCount() {
+            document.getElementById('deviceCount').textContent = deviceCount;
+            if (deviceCount > 0) {
+                document.getElementById('deviceCount').className = 'status-value connected';
+            } else {
+                document.getElementById('deviceCount').className = 'status-value warning';
+            }
+        }
+
+        // 로그 추가
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('connectionLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // 로그가 너무 많으면 오래된 것 제거
+            if (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // 로그 지우기
+        function clearLog() {
+            document.getElementById('connectionLog').innerHTML = '';
+            addLog('📊 로그가 지워졌습니다', 'info');
+        }
+
+        // 데이터 내보내기
+        function exportData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                sensorData: sensorData,
+                stats: {
+                    deviceCount: deviceCount,
+                    totalData: dataCount,
+                    dataRate: dataRate
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sensor-data-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            addLog('💾 데이터 내보내기 완료', 'success');
+        }
+
+        // 통계 업데이트
+        function updateStats() {
+            dataRate = lastSecondData;
+            lastSecondData = 0;
+            
+            document.getElementById('dataRate').textContent = dataRate;
+            document.getElementById('totalData').textContent = dataCount;
+            
+            if (dataRate > 0) {
+                document.getElementById('dataRate').className = 'status-value connected';
+            } else {
+                document.getElementById('dataRate').className = 'status-value warning';
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        window.addEventListener('load', function() {
+            connectWebSocket();
+            
+            // 1초마다 통계 업데이트
+            setInterval(updateStats, 1000);
+            
+            addLog('🚀 센서 대시보드 시작', 'info');
+        });
+
+        // 페이지 종료 시 연결 해제
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html>

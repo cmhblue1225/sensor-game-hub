@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 센서 클라이언트 - 센서 게임 허브</title>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --background-color: #0f0f23;
+            --surface-color: #1a1a2e;
+            --card-color: #16213e;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --success-color: #00ff88;
+            --warning-color: #ffaa00;
+            --error-color: #ff4757;
+            --border-color: #333366;
+            --gradient-primary: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+        }
+
+        .status-card {
+            background: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .status-icon {
+            font-size: 2rem;
+        }
+
+        .status-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .device-info {
+            background: var(--surface-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .device-info h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .info-grid {
+            display: grid;
+            gap: 0.75rem;
+            text-align: left;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+        }
+
+        .info-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .sensor-data {
+            background: var(--surface-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .sensor-data h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .sensor-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .sensor-item {
+            background: var(--card-color);
+            border-radius: calc(var(--border-radius) / 2);
+            padding: 1rem;
+        }
+
+        .sensor-item h4 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .sensor-values {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .sensor-value {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .sensor-value .label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .sensor-value .value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .controls {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--card-color);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .permission-info {
+            background: var(--warning-color);
+            color: var(--background-color);
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .stats {
+            background: var(--surface-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .stats h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success-color);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .visual-indicator {
+            width: 100px;
+            height: 100px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            margin: 1rem auto;
+            position: relative;
+            background: var(--card-color);
+        }
+
+        .tilt-dot {
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: var(--transition);
+        }
+
+        .error-message {
+            background: var(--error-color);
+            color: white;
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .status-card, .device-info, .sensor-data {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <div class="header">
+            <h1>📱 센서 클라이언트</h1>
+            <p>휴대폰 센서를 게임에 연결하세요</p>
+        </div>
+
+        <!-- 연결 상태 -->
+        <div class="status-card">
+            <div class="connection-status">
+                <span class="status-icon" id="statusIcon">🔴</span>
+                <span class="status-text" id="statusText">연결 준비중...</span>
+            </div>
+
+            <!-- 기울기 시각화 -->
+            <div class="visual-indicator">
+                <div class="tilt-dot" id="tiltDot"></div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" id="connectBtn">센서 연결하기</button>
+                <button class="btn btn-secondary" id="calibrateBtn" disabled>센서 보정</button>
+                <a href="/" class="btn btn-secondary">🏠 허브로 돌아가기</a>
+            </div>
+        </div>
+
+        <!-- 권한 안내 (iOS) -->
+        <div class="permission-info" id="permissionInfo" style="display: none;">
+            <strong>⚠️ iOS 사용자 안내</strong><br>
+            iOS에서 센서 사용을 위해 권한을 허용해주세요. 
+            '설정' → '동작 및 방향'에서 접근을 허용하세요.
+        </div>
+
+        <!-- 에러 메시지 -->
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+
+        <!-- 디바이스 정보 -->
+        <div class="device-info">
+            <h3>📱 디바이스 정보</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">디바이스 ID:</span>
+                    <span class="info-value" id="deviceId">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">브라우저:</span>
+                    <span class="info-value" id="userAgent">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">지원 센서:</span>
+                    <span class="info-value" id="supportedSensors">확인중...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">연결 상태:</span>
+                    <span class="info-value" id="connectionState">대기중</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 센서 데이터 -->
+        <div class="sensor-data">
+            <h3>📊 실시간 센서 데이터</h3>
+            <div class="sensor-grid">
+                <div class="sensor-item">
+                    <h4>방향 센서 (Orientation)</h4>
+                    <div class="sensor-values">
+                        <div class="sensor-value">
+                            <span class="label">Alpha</span>
+                            <span class="value" id="orientationAlpha">0°</span>
+                        </div>
+                        <div class="sensor-value">
+                            <span class="label">Beta</span>
+                            <span class="value" id="orientationBeta">0°</span>
+                        </div>
+                        <div class="sensor-value">
+                            <span class="label">Gamma</span>
+                            <span class="value" id="orientationGamma">0°</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sensor-item">
+                    <h4>가속도계 (Accelerometer)</h4>
+                    <div class="sensor-values">
+                        <div class="sensor-value">
+                            <span class="label">X</span>
+                            <span class="value" id="accelerometerX">0</span>
+                        </div>
+                        <div class="sensor-value">
+                            <span class="label">Y</span>
+                            <span class="value" id="accelerometerY">0</span>
+                        </div>
+                        <div class="sensor-value">
+                            <span class="label">Z</span>
+                            <span class="value" id="accelerometerZ">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sensor-item">
+                    <h4>자이로스코프 (Gyroscope)</h4>
+                    <div class="sensor-values">
+                        <div class="sensor-value">
+                            <span class="label">Alpha</span>
+                            <span class="value" id="gyroscopeAlpha">0</span>
+                        </div>
+                        <div class="sensor-value">
+                            <span class="label">Beta</span>
+                            <span class="value" id="gyroscopeBeta">0</span>
+                        </div>
+                        <div class="sensor-value">
+                            <span class="label">Gamma</span>
+                            <span class="value" id="gyroscopeGamma">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 통계 -->
+        <div class="stats">
+            <h3>📈 전송 통계</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="packetsPerSecond">0</div>
+                    <div class="stat-label">패킷/초</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="totalPackets">0</div>
+                    <div class="stat-label">총 전송량</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/core/sensor-client.js"></script>
+</body>
+</html>

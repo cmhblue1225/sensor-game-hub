@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: sensor-game-hub
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8443
+    
+    # 도메인 설정 (선택사항)
+    # customDomains:
+    #   - name: yourdomain.com
+    #     certificateId: your-certificate-id

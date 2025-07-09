@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{GAME_NAME}} - 센서 게임</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0f0f23, #1a1a2e);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .game-header h1 {
+            margin: 0;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #gameCanvas {
+            border: 2px solid #333366;
+            border-radius: 10px;
+            background: linear-gradient(45deg, #16213e, #1a1a2e);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .ui-panel {
+            background: rgba(22, 33, 62, 0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #333366;
+            backdrop-filter: blur(10px);
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1>{{GAME_ICON}} {{GAME_NAME}}</h1>
+            <p>{{GAME_DESCRIPTION}}</p>
+        </div>
+
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+        <div class="game-ui">
+            <div class="ui-panel">
+                <div class="score">점수: <span id="scoreValue">0</span></div>
+            </div>
+            <div class="ui-panel">
+                <div class="sensor-status" id="sensorStatus">센서 연결 대기중...</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="window.game && window.game.calibrate && window.game.calibrate()">센서 보정</button>
+            <button class="btn" onclick="window.game && window.game.restart && window.game.restart()">다시 시작</button>
+            <button class="btn" onclick="window.open('/', '_blank')">🏠 허브로</button>
+        </div>
+    </div>
+
+    <script src="../../sdk/sensor-game-sdk.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
