@@ -657,75 +657,115 @@ function configureFirewall() {
   });
 }
 
-// HTTPS 서버 설정 및 시작 함수
-async function setupAndStartHTTPSServer() {
+// 서버 설정 및 시작 함수
+async function setupAndStartServer() {
   try {
-    const HTTPS_PORT = process.env.PORT || 8443;
+    const PORT = process.env.PORT || 8443;
+    const NODE_ENV = process.env.NODE_ENV || 'development';
     
-    console.log('\n🚀 센서 게임 허브 플랫폼 v2.0 (HTTPS 전용)');
+    console.log('\n🚀 센서 게임 허브 플랫폼 v2.0');
     console.log('==============================================');
     
-    // SSL 인증서 자동 생성
-    await generateSSLCertificate();
-    
-    // 인증서를 시스템에 자동으로 신뢰하도록 설정
-    console.log('');
-    await trustCertificate();
-    console.log('');
-
-    // Windows 방화벽 자동 설정
-    await configureFirewall();
-    console.log('');
-    
-    const certPath = path.join(__dirname, 'cert.pem');
-    const keyPath = path.join(__dirname, 'key.pem');
-    
-    const key = fs.readFileSync(keyPath, 'utf8');
-    const cert = fs.readFileSync(certPath, 'utf8');
-    
-    const httpsOptions = { key, cert };
-    httpsServer = https.createServer(httpsOptions, app);
-    
-    // HTTPS WebSocket 서버 생성
-    httpsWss = new WebSocket.Server({ server: httpsServer });
-    setupWebSocketHandlers(httpsWss);
-    
-    // HTTPS 서버 시작
-    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-      const localIP = getLocalIP();
+    // 프로덕션 환경에서는 HTTP 서버 실행 (Render 호환)
+    if (NODE_ENV === 'production') {
+      console.log('🌐 프로덕션 모드: HTTP 서버 실행');
       
-      console.log(`🔒 HTTPS 서버: https://${localIP}:${HTTPS_PORT}`);
-      console.log(`   로컬 접속: https://localhost:${HTTPS_PORT}`);
+      // HTTP WebSocket 서버 생성
+      const http = require('http');
+      const httpServer = http.createServer(app);
+      const httpWss = new WebSocket.Server({ server: httpServer });
+      setupWebSocketHandlers(httpWss);
+      
+      // HTTP 서버 시작
+      httpServer.listen(PORT, '0.0.0.0', () => {
+        console.log(`🌐 HTTP 서버: http://0.0.0.0:${PORT}`);
+        console.log('📱 모바일 접속 (센서 연결용):');
+        console.log(`   https://sensor-game-hub.onrender.com/sensor-client`);
+        console.log('🎮 PC 접속 (게임 플레이용):');
+        console.log(`   https://sensor-game-hub.onrender.com`);
+        console.log('📊 기타 서비스:');
+        console.log(`   대시보드: https://sensor-game-hub.onrender.com/dashboard`);
+        console.log('==============================================');
+        console.log('✅ 서버 준비 완료!');
+        console.log('💡 Render에서 자동으로 HTTPS를 제공합니다! 🎉');
+      });
+      
+      httpServer.on('error', (error) => {
+        console.error('❌ HTTP 서버 오류:', error);
+        if (error.code === 'EADDRINUSE') {
+          console.error(`❌ 포트 ${PORT}이 이미 사용 중입니다.`);
+        } else if (error.code === 'EACCES') {
+          console.error(`❌ 포트 ${PORT}에 대한 접근 권한이 없습니다.`);
+        }
+        process.exit(1);
+      });
+      
+    } else {
+      // 개발 환경에서는 HTTPS 서버 실행
+      console.log('🔒 개발 모드: HTTPS 서버 실행');
+      
+      // SSL 인증서 자동 생성
+      await generateSSLCertificate();
+      
+      // 인증서를 시스템에 자동으로 신뢰하도록 설정
       console.log('');
-      console.log('📱 모바일 접속 (센서 연결용):');
-      console.log(`   https://${localIP}:${HTTPS_PORT}/sensor-client`);
+      await trustCertificate();
       console.log('');
-      console.log('🎮 PC 접속 (게임 플레이용):');
-      console.log(`   https://${localIP}:${HTTPS_PORT}`);
+
+      // Windows 방화벽 자동 설정
+      await configureFirewall();
       console.log('');
-      console.log('📊 기타 서비스:');
-      console.log(`   대시보드: https://${localIP}:${HTTPS_PORT}/dashboard`);
-      console.log(`   개발자 문서: https://${localIP}:${HTTPS_PORT}/docs`);
-      console.log(`   SDK: https://${localIP}:${HTTPS_PORT}/sdk`);
-      console.log('');
-      console.log('==============================================');
-      console.log('✅ HTTPS 서버 준비 완료!');
-      console.log('💡 이제 안드로이드/iOS 모든 기기에서 센서를 사용할 수 있습니다! 🎉');
-      console.log('📱 모바일에서는 센서 연결, PC에서는 게임 선택이 가능합니다.\n');
-    });
-    
-    httpsServer.on('error', (error) => {
-      console.error('❌ HTTPS 서버 오류:', error);
-      if (error.code === 'EADDRINUSE') {
-        console.error(`❌ 포트 ${HTTPS_PORT}이 이미 사용 중입니다.`);
-      } else if (error.code === 'EACCES') {
-        console.error(`❌ 포트 ${HTTPS_PORT}에 대한 접근 권한이 없습니다.`);
-      }
-      process.exit(1);
-    });
+      
+      const certPath = path.join(__dirname, 'cert.pem');
+      const keyPath = path.join(__dirname, 'key.pem');
+      
+      const key = fs.readFileSync(keyPath, 'utf8');
+      const cert = fs.readFileSync(certPath, 'utf8');
+      
+      const httpsOptions = { key, cert };
+      httpsServer = https.createServer(httpsOptions, app);
+      
+      // HTTPS WebSocket 서버 생성
+      httpsWss = new WebSocket.Server({ server: httpsServer });
+      setupWebSocketHandlers(httpsWss);
+      
+      // HTTPS 서버 시작
+      httpsServer.listen(PORT, '0.0.0.0', () => {
+        const localIP = getLocalIP();
+        
+        console.log(`🔒 HTTPS 서버: https://${localIP}:${PORT}`);
+        console.log(`   로컬 접속: https://localhost:${PORT}`);
+        console.log('');
+        console.log('📱 모바일 접속 (센서 연결용):');
+        console.log(`   https://${localIP}:${PORT}/sensor-client`);
+        console.log('');
+        console.log('🎮 PC 접속 (게임 플레이용):');
+        console.log(`   https://${localIP}:${PORT}`);
+        console.log('');
+        console.log('📊 기타 서비스:');
+        console.log(`   대시보드: https://${localIP}:${PORT}/dashboard`);
+        console.log(`   개발자 문서: https://${localIP}:${PORT}/docs`);
+        console.log(`   SDK: https://${localIP}:${PORT}/sdk`);
+        console.log('');
+        console.log('==============================================');
+        console.log('✅ HTTPS 서버 준비 완료!');
+        console.log('💡 이제 안드로이드/iOS 모든 기기에서 센서를 사용할 수 있습니다! 🎉');
+        console.log('📱 모바일에서는 센서 연결, PC에서는 게임 선택이 가능합니다.\n');
+      });
+      
+      httpsServer.on('error', (error) => {
+        console.error('❌ HTTPS 서버 오류:', error);
+        if (error.code === 'EADDRINUSE') {
+          console.error(`❌ 포트 ${PORT}이 이미 사용 중입니다.`);
+        } else if (error.code === 'EACCES') {
+          console.error(`❌ 포트 ${PORT}에 대한 접근 권한이 없습니다.`);
+        }
+        process.exit(1);
+      });
+    }
     
   } catch (error) {
-    console.error('❌ HTTPS 서버 설정 실패:', error);
+    console.error('❌ 서버 설정 실패:', error);
     process.exit(1);
   }
 }
@@ -772,8 +812,8 @@ async function startServer() {
   // 기본 게임들 초기화
   initializeDefaultGames();
   
-  // HTTPS 서버 설정 및 시작
-  await setupAndStartHTTPSServer();
+  // 서버 설정 및 시작
+  await setupAndStartServer();
 }
 
 // 서버 시작
