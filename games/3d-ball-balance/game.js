@@ -134,11 +134,10 @@ class BallBalanceAdventure extends SensorGameSDK {
         
         while (attempts < maxAttempts) {
             const threeLoaded = typeof THREE !== 'undefined';
-            const cannonLoaded = typeof CANNON !== 'undefined';
             
-            console.log(`📚 THREE.js: ${threeLoaded ? '✅' : '❌'}, CANNON.js: ${cannonLoaded ? '✅' : '❌'}`);
+            console.log(`📚 THREE.js: ${threeLoaded ? '✅' : '❌'}`);
             
-            if (threeLoaded && cannonLoaded) {
+            if (threeLoaded) {
                 console.log('✅ 필수 라이브러리 로딩 완료');
                 return;
             }
@@ -152,10 +151,7 @@ class BallBalanceAdventure extends SensorGameSDK {
             throw new Error('THREE.js 라이브러리 로딩 실패 - CDN 연결을 확인하세요');
         }
         
-        if (typeof CANNON === 'undefined') {
-            console.warn('⚠️ CANNON.js 라이브러리 로딩 실패 - 간단한 물리 시뮬레이션 사용');
-            // CANNON.js 없이도 게임 진행 가능
-        }
+        console.log('✅ 간단한 물리 시뮬레이션 사용');
     }
     
     /**
@@ -167,9 +163,9 @@ class BallBalanceAdventure extends SensorGameSDK {
             throw new Error('Three.js 라이브러리가 로드되지 않았습니다.');
         }
         
-        if (typeof CANNON === 'undefined') {
-            throw new Error('CANNON.js 물리 엔진이 로드되지 않았습니다.');
-        }
+        // 간단한 물리 시뮬레이션 사용
+        this.physicsEnabled = false;
+        console.log('✅ 간단한 물리 시뮬레이션 사용');
         // 캔버스 설정
         this.canvas = document.getElementById('gameCanvas');
         
@@ -194,7 +190,11 @@ class BallBalanceAdventure extends SensorGameSDK {
             alpha: false,
             powerPreference: "high-performance"
         });
-        this.renderer.setSize(800, 600);
+        
+        // 초기 크기 설정
+        const initialWidth = 800;
+        const initialHeight = 600;
+        this.renderer.setSize(initialWidth, initialHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -202,19 +202,24 @@ class BallBalanceAdventure extends SensorGameSDK {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
         
-        // 물리 세계 초기화
-        if (typeof CANNON !== 'undefined') {
-            this.world = new CANNON.World();
-            this.world.gravity.set(0, -20, 0);
-            this.world.broadphase = new CANNON.NaiveBroadphase();
-            this.world.solver.iterations = 10;
-            this.physicsEnabled = true;
-            console.log('✅ CANNON.js 물리 엔진 활성화');
-        } else {
-            console.warn('⚠️ CANNON.js 없음, 간단한 물리 시뮬레이션으로 대체');
-            this.world = null;
-            this.physicsEnabled = false;
-        }
+        // 캔버스 크기 명시적 설정
+        this.canvas.width = initialWidth;
+        this.canvas.height = initialHeight;
+        this.canvas.style.width = initialWidth + 'px';
+        this.canvas.style.height = initialHeight + 'px';
+        
+        console.log(`📐 초기 캔버스 크기: ${initialWidth}x${initialHeight}`);
+        
+        // 간단한 물리 시스템 초기화
+        this.world = null;
+        this.gravity = -20;
+        this.ballPosition = new THREE.Vector3(0, 2, 0);
+        this.ballVelocity = new THREE.Vector3(0, 0, 0);
+        this.ballAngularVelocity = new THREE.Vector3(0, 0, 0);
+        this.friction = 0.98;
+        this.bounceRestitution = 0.6;
+        this.tiltForce = 15.0;
+        this.maxSpeed = 20;
         
         // 머티리얼 설정
         this.setupMaterials();
@@ -237,7 +242,7 @@ class BallBalanceAdventure extends SensorGameSDK {
      */
     setupMaterials() {
         // 물리 머티리얼 (CANNON.js 사용 시)
-        if (this.physicsEnabled && typeof CANNON !== 'undefined') {
+        if (this.physicsEnabled) {
             this.ballMaterial = new CANNON.Material("ball");
             this.platformMaterial = new CANNON.Material("platform");
             this.goalMaterial = new CANNON.Material("goal");
@@ -976,7 +981,6 @@ class BallBalanceAdventure extends SensorGameSDK {
         // 장애물 제거
         this.obstacles.forEach(obstacle => {
             this.scene.remove(obstacle.mesh);
-            this.world.remove(obstacle.body);
         });
         this.obstacles = [];
         
@@ -989,25 +993,14 @@ class BallBalanceAdventure extends SensorGameSDK {
         // 수집 아이템 제거
         this.collectibles.forEach(collectible => {
             this.scene.remove(collectible.mesh);
-            this.world.remove(collectible.body);
         });
         this.collectibles = [];
         
         // 물리 바디 제거
-        if (this.ballBody) {
-            this.world.remove(this.ballBody);
-            this.ballBody = null;
-        }
-        
-        if (this.platformBody) {
-            this.world.remove(this.platformBody);
-            this.platformBody = null;
-        }
-        
-        if (this.goalBody) {
-            this.world.remove(this.goalBody);
-            this.goalBody = null;
-        }
+        // 간단한 물리 시스템 - 별도 정리 불필요
+        this.ballBody = null;
+        this.platformBody = null;
+        this.goalBody = null;
     }
     
     /**
@@ -1021,12 +1014,9 @@ class BallBalanceAdventure extends SensorGameSDK {
         this.platform.receiveShadow = true;
         this.scene.add(this.platform);
         
-        // 물리 바디
-        const shape = new CANNON.Box(new CANNON.Vec3(size.width/2, size.height/2, size.depth/2));
-        this.platformBody = new CANNON.Body({ mass: 0, material: this.platformMaterial });
-        this.platformBody.addShape(shape);
-        this.platformBody.position.set(0, 0, 0);
-        this.world.add(this.platformBody);
+        // 간단한 물리 시스템 - 플랫폼 정보 저장
+        this.platformSize = size;
+        this.platformBody = null;
         
         // 플랫폼 테두리 발광 효과
         const edgeGeometry = new THREE.EdgesGeometry(geometry);
@@ -1051,21 +1041,12 @@ class BallBalanceAdventure extends SensorGameSDK {
         this.ball.castShadow = true;
         this.scene.add(this.ball);
         
-        // 물리 바디 (CANNON.js 사용 시)
-        if (this.physicsEnabled && typeof CANNON !== 'undefined') {
-            const shape = new CANNON.Sphere(0.5);
-            this.ballBody = new CANNON.Body({ mass: 1, material: this.ballMaterial });
-            this.ballBody.addShape(shape);
-            this.ballBody.position.set(startPos.x, startPos.y, startPos.z);
-            this.ballBody.linearDamping = 0.1;
-            this.ballBody.angularDamping = 0.1;
-            this.world.add(this.ballBody);
-        } else {
-            // 간단한 물리 시뮬레이션
-            this.ballPosition.set(startPos.x, startPos.y, startPos.z);
-            this.ballVelocity.set(0, 0, 0);
-            this.ballBody = null;
-        }
+        // 간단한 물리 시뮬레이션
+        this.ballPosition.set(startPos.x, startPos.y, startPos.z);
+        this.ballVelocity.set(0, 0, 0);
+        this.ballAngularVelocity.set(0, 0, 0);
+        this.ballBody = null;
+        this.ballRadius = 0.5;
         
         // 볼 발광 효과
         const glowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
@@ -1077,13 +1058,7 @@ class BallBalanceAdventure extends SensorGameSDK {
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         this.ball.add(glow);
         
-        // 충돌 이벤트 리스너
-        this.ballBody.addEventListener('collide', (event) => {
-            const velocity = this.ballBody.velocity.length();
-            if (velocity > 5) {
-                this.sounds.ballBounce.play(Math.min(velocity / 10, 0.5));
-            }
-        });
+        // 충돌 이벤트는 업데이트 루프에서 처리
     }
     
     /**
@@ -1136,12 +1111,11 @@ class BallBalanceAdventure extends SensorGameSDK {
         mesh.receiveShadow = true;
         this.scene.add(mesh);
         
-        // 물리 바디
-        const shape = new CANNON.Box(new CANNON.Vec3(width/2, height/2, depth/2));
-        const body = new CANNON.Body({ mass: 0, material: this.platformMaterial });
-        body.addShape(shape);
-        body.position.set(x, y, z);
-        this.world.add(body);
+        // 간단한 물리 시스템 - 충돌 박스 정보 저장
+        const body = {
+            position: new THREE.Vector3(x, y, z),
+            size: new THREE.Vector3(width, height, depth)
+        };
         
         // 장애물 발광 효과
         const edgeGeometry = new THREE.EdgesGeometry(geometry);
@@ -1153,7 +1127,7 @@ class BallBalanceAdventure extends SensorGameSDK {
         const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
         mesh.add(edges);
         
-        this.obstacles.push({ mesh, body });
+        this.obstacles.push({ mesh, body, bounds: body });
     }
     
     /**
@@ -1206,13 +1180,11 @@ class BallBalanceAdventure extends SensorGameSDK {
         mesh.castShadow = true;
         this.scene.add(mesh);
         
-        // 물리 바디 (센서로 설정)
-        const shape = new CANNON.Sphere(0.3);
-        const body = new CANNON.Body({ mass: 0 });
-        body.addShape(shape);
-        body.position.set(x, y, z);
-        body.isTrigger = true;
-        this.world.add(body);
+        // 간단한 물리 시스템 - 충돌 박스 정보 저장
+        const body = {
+            position: new THREE.Vector3(x, y, z),
+            radius: 0.3
+        };
         
         // 회전 애니메이션을 위한 참조 저장
         const collectible = {
@@ -1245,7 +1217,7 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 센서 입력 처리 (필수 메서드)
      */
     handleSensorInput(gameInput) {
-        if (!this.gameState.isPlaying || this.gameState.isPaused || !this.ballBody) return;
+        if (!this.gameState.isPlaying || this.gameState.isPaused || !this.ball) return;
         
         const tiltSensitivity = 8.0;
         const maxTiltForce = 15.0;
@@ -1255,18 +1227,12 @@ class BallBalanceAdventure extends SensorGameSDK {
             const forceX = Math.max(-maxTiltForce, Math.min(maxTiltForce, gameInput.tilt.x * tiltSensitivity));
             const forceZ = Math.max(-maxTiltForce, Math.min(maxTiltForce, gameInput.tilt.y * tiltSensitivity));
             
-            if (this.ballBody) {
-                // CANNON.js 물리 엔진 사용
-                this.ballBody.force.x += forceX;
-                this.ballBody.force.z += forceZ;
-            } else {
-                // 간단한 물리 시뮬레이션
-                this.ballVelocity.x += forceX * this.deltaTime * 0.1;
-                this.ballVelocity.z += forceZ * this.deltaTime * 0.1;
-            }
+            // 간단한 물리 시뮬레이션
+            this.ballVelocity.x += forceX * this.deltaTime * 0.1;
+            this.ballVelocity.z += forceZ * this.deltaTime * 0.1;
             
             // 볼 굴리는 사운드 재생
-            const velocity = this.ballBody ? this.ballBody.velocity.length() : this.ballVelocity.length();
+            const velocity = this.ballVelocity.length();
             if (velocity > 1 && Math.random() < 0.1) {
                 this.sounds.ballRoll.play(Math.min(velocity / 20, 0.2));
             }
@@ -1274,11 +1240,7 @@ class BallBalanceAdventure extends SensorGameSDK {
         
         // 흔들기 기반 점프
         if (gameInput.shake && gameInput.shake.detected && gameInput.shake.intensity > 15) {
-            if (this.ballBody) {
-                this.ballBody.velocity.y += 5;
-            } else {
-                this.ballVelocity.y += 5;
-            }
+            this.ballVelocity.y += 5;
             this.sounds.ballBounce.play(0.3);
         }
     }
@@ -1293,10 +1255,8 @@ class BallBalanceAdventure extends SensorGameSDK {
             // 특수 키 처리
             if (e.key === ' ') {
                 e.preventDefault();
-                if (this.ballBody) {
-                    this.ballBody.velocity.y += 5;
-                    this.sounds.ballBounce.play(0.3);
-                }
+                this.ballVelocity.y += 5;
+                this.sounds.ballBounce.play(0.3);
             }
             
             if (e.key === 'r' || e.key === 'R') {
@@ -1321,7 +1281,7 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 키보드 입력 처리
      */
     handleKeyboardInput() {
-        if (!this.gameState.isPlaying || this.gameState.isPaused || !this.ballBody || this.sensorConnected) return;
+        if (!this.gameState.isPlaying || this.gameState.isPaused || !this.ball || this.sensorConnected) return;
         
         let mockInput = { tilt: { x: 0, y: 0 }, shake: { detected: false, intensity: 0 } };
         const tiltStrength = 0.8;
@@ -1371,20 +1331,13 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 게임 업데이트 (필수 메서드)
      */
     update() {
-        if (!this.ballBody || !this.gameState.isPlaying) return;
+        if (!this.ball || !this.gameState.isPlaying) return;
         
         // 키보드 입력 처리
         this.handleKeyboardInput();
         
-        // 물리 시뮬레이션 업데이트
-        if (this.physicsEnabled && this.world) {
-            this.world.step(1/60);
-            // Three.js 오브젝트를 물리 바디에 동기화
-            this.syncPhysicsToVisuals();
-        } else {
-            // 간단한 물리 시뮬레이션
-            this.updateSimplePhysics();
-        }
+        // 간단한 물리 시뮬레이션
+        this.updateSimplePhysics();
         
         // 게임 로직 업데이트
         this.updateGameLogic();
@@ -1406,12 +1359,14 @@ class BallBalanceAdventure extends SensorGameSDK {
     }
     
     /**
-     * 물리 바디와 시각적 오브젝트 동기화
+     * 간단한 물리 시뮬레이션에서 시각적 오브젝트 동기화
      */
     syncPhysicsToVisuals() {
-        if (this.ball && this.ballBody) {
-            this.ball.position.copy(this.ballBody.position);
-            this.ball.quaternion.copy(this.ballBody.quaternion);
+        if (this.ball && this.ballPosition) {
+            this.ball.position.copy(this.ballPosition);
+            // 간단한 회전 시뮬레이션
+            this.ball.rotation.x += this.ballVelocity.z * this.deltaTime;
+            this.ball.rotation.z -= this.ballVelocity.x * this.deltaTime;
         }
     }
     
@@ -1430,12 +1385,51 @@ class BallBalanceAdventure extends SensorGameSDK {
         // 플랫폼 충돌 감지 (간단한 Y축 체크)
         if (this.ballPosition.y <= 0.5) {
             this.ballPosition.y = 0.5;
-            this.ballVelocity.y *= -this.bounce;
+            this.ballVelocity.y *= -this.bounceRestitution;
             
             // 마찰 적용
             this.ballVelocity.x *= this.friction;
             this.ballVelocity.z *= this.friction;
+            
+            // 바운스 사운드 재생
+            const velocity = this.ballVelocity.length();
+            if (velocity > 2) {
+                this.sounds.ballBounce.play(Math.min(velocity / 10, 0.5));
+            }
         }
+        
+        // 플랫폼 경계 체크
+        if (this.platformSize) {
+            const halfWidth = this.platformSize.width / 2;
+            const halfDepth = this.platformSize.depth / 2;
+            
+            if (this.ballPosition.x > halfWidth - this.ballRadius) {
+                this.ballPosition.x = halfWidth - this.ballRadius;
+                this.ballVelocity.x *= -this.bounceRestitution;
+            }
+            if (this.ballPosition.x < -halfWidth + this.ballRadius) {
+                this.ballPosition.x = -halfWidth + this.ballRadius;
+                this.ballVelocity.x *= -this.bounceRestitution;
+            }
+            if (this.ballPosition.z > halfDepth - this.ballRadius) {
+                this.ballPosition.z = halfDepth - this.ballRadius;
+                this.ballVelocity.z *= -this.bounceRestitution;
+            }
+            if (this.ballPosition.z < -halfDepth + this.ballRadius) {
+                this.ballPosition.z = -halfDepth + this.ballRadius;
+                this.ballVelocity.z *= -this.bounceRestitution;
+            }
+        }
+        
+        // 속도 제한
+        const speed = this.ballVelocity.length();
+        if (speed > this.maxSpeed) {
+            this.ballVelocity.multiplyScalar(this.maxSpeed / speed);
+        }
+        
+        // 시각적 동기화
+        this.syncPhysicsToVisuals();
+    }
         
         // 시각적 오브젝트 위치 동기화
         this.ball.position.copy(this.ballPosition);
@@ -1958,20 +1952,26 @@ class BallBalanceAdventure extends SensorGameSDK {
         
         // 4:3 비율 유지
         const aspectRatio = 4/3;
-        let width = maxWidth;
+        let width = Math.max(maxWidth, 800); // 최소 800px 보장
         let height = width / aspectRatio;
         
         if (height > maxHeight) {
-            height = maxHeight;
+            height = Math.max(maxHeight, 600); // 최소 600px 보장
             width = height * aspectRatio;
         }
         
+        // 캔버스 크기 설정
+        this.canvas.width = width;
+        this.canvas.height = height;
         this.canvas.style.width = width + 'px';
         this.canvas.style.height = height + 'px';
         
+        // 렌더러 크기 설정
         this.renderer.setSize(width, height);
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
+        
+        console.log(`📐 캔버스 크기 조정: ${width}x${height}`);
     }
     
     /**
