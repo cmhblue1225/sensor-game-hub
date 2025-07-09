@@ -1329,10 +1329,23 @@ class BallBalanceAdventure extends SensorGameSDK {
      */
     syncPhysicsToVisuals() {
         if (this.ball && this.ballPosition) {
+            // NaN 값 방지
+            if (isNaN(this.ballPosition.x) || isNaN(this.ballPosition.y) || isNaN(this.ballPosition.z)) {
+                // 기본값으로 재설정
+                this.ballPosition.set(0, 2, 0);
+                this.ballVelocity.set(0, 0, 0);
+            }
+            
             this.ball.position.copy(this.ballPosition);
+            
             // 간단한 회전 시뮬레이션
-            this.ball.rotation.x += this.ballVelocity.z * this.deltaTime;
-            this.ball.rotation.z -= this.ballVelocity.x * this.deltaTime;
+            const rotationX = this.ballVelocity.z * this.deltaTime;
+            const rotationZ = -this.ballVelocity.x * this.deltaTime;
+            
+            if (!isNaN(rotationX) && !isNaN(rotationZ)) {
+                this.ball.rotation.x += rotationX;
+                this.ball.rotation.z += rotationZ;
+            }
         }
     }
     
@@ -1342,11 +1355,23 @@ class BallBalanceAdventure extends SensorGameSDK {
     updateSimplePhysics() {
         if (!this.ball || !this.ballPosition) return;
         
+        // NaN 값 방지
+        if (isNaN(this.deltaTime) || this.deltaTime <= 0 || this.deltaTime > 1) {
+            this.deltaTime = 1/60; // 기본값으로 설정
+        }
+        
         // 중력 적용
         this.ballVelocity.y += this.gravity * this.deltaTime;
         
         // 속도로 위치 업데이트
-        this.ballPosition.add(this.ballVelocity.clone().multiplyScalar(this.deltaTime));
+        const deltaMovement = this.ballVelocity.clone().multiplyScalar(this.deltaTime);
+        
+        // NaN 값 방지
+        if (isNaN(deltaMovement.x) || isNaN(deltaMovement.y) || isNaN(deltaMovement.z)) {
+            return;
+        }
+        
+        this.ballPosition.add(deltaMovement);
         
         // 플랫폼 충돌 감지 (간단한 Y축 체크)
         if (this.ballPosition.y <= 0.5) {
@@ -1500,9 +1525,14 @@ class BallBalanceAdventure extends SensorGameSDK {
      */
     updateParticles() {
         // 볼 궤적 파티클 업데이트
-        if (this.ball && this.particleSystems.trail) {
+        if (this.ball && this.particleSystems.trail && this.ballPosition) {
             const trail = this.particleSystems.trail;
-            const ballPos = this.ball.position;
+            const ballPos = this.ballPosition; // 안정적인 볼 위치 사용
+            
+            // NaN 값 방지
+            if (isNaN(ballPos.x) || isNaN(ballPos.y) || isNaN(ballPos.z)) {
+                return;
+            }
             
             // 새 파티클 위치 추가
             const index = trail.currentIndex % trail.particleCount;
