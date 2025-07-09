@@ -124,6 +124,11 @@ class SensorGameSDK {
                 }));
                 
                 this.triggerCallback('onConnectionChange', true);
+                
+                // 센서 매칭 요청 (1초 후)
+                setTimeout(() => {
+                    this.requestSensorMatch();
+                }, 1000);
             };
             
             this.socket.onmessage = (event) => {
@@ -165,8 +170,31 @@ class SensorGameSDK {
                 break;
                 
             case 'sensor_data':
-                this.processSensorData(data.sensorData);
-                this.deviceId = data.deviceId;
+                // 세션 ID 확인 후 센서 데이터 처리
+                if (data.sessionId === this.sessionId) {
+                    this.processSensorData(data.sensorData);
+                    this.deviceId = data.deviceId;
+                }
+                break;
+                
+            case 'sensor_matched':
+                console.log(`🎯 센서 매칭 성공: ${data.deviceId}`);
+                this.matchedSensorId = data.deviceId;
+                this.sessionId = data.sessionId;
+                this.triggerCallback('onSensorStatusChange', { 
+                    connected: true, 
+                    deviceId: data.deviceId,
+                    sessionId: data.sessionId
+                });
+                break;
+                
+            case 'sensor_match_failed':
+                console.warn('⚠️ 센서 매칭 실패:', data.message);
+                this.triggerCallback('onSensorStatusChange', { 
+                    connected: false, 
+                    reason: data.reason,
+                    message: data.message
+                });
                 break;
                 
             case 'sensor_device_connected':
@@ -174,7 +202,15 @@ class SensorGameSDK {
                 break;
                 
             case 'sensor_device_disconnected':
-                console.log('센서 디바이스 연결 해제됨:', data.deviceId);
+                if (data.sessionId === this.sessionId) {
+                    console.log('📱 연결된 센서 디바이스 연결 해제됨');
+                    this.matchedSensorId = null;
+                    this.sessionId = null;
+                    this.triggerCallback('onSensorStatusChange', { 
+                        connected: false,
+                        reason: 'sensor_disconnected'
+                    });
+                }
                 break;
                 
             case 'pong':
@@ -392,6 +428,34 @@ class SensorGameSDK {
         
         console.log('센서 보정 완료:', this.calibration);
         this.triggerCallback('onCalibration', this.calibration);
+    }
+    
+    /**
+     * 센서 매칭 요청
+     */
+    requestSensorMatch() {
+        if (this.isConnected && this.socket) {
+            this.socket.send(JSON.stringify({
+                type: 'request_sensor_match',
+                gameId: this.gameConfig.gameId,
+                timestamp: Date.now()
+            }));
+            console.log('🔍 센서 매칭 요청 전송');
+        }
+    }
+    
+    /**
+     * 센서 연결 해제
+     */
+    disconnectSensor() {
+        if (this.isConnected && this.socket && this.sessionId) {
+            this.socket.send(JSON.stringify({
+                type: 'disconnect_sensor',
+                sessionId: this.sessionId,
+                timestamp: Date.now()
+            }));
+            console.log('🔌 센서 연결 해제 요청');
+        }
     }
     
     /**

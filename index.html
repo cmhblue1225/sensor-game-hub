@@ -643,13 +643,18 @@
                 
                 switch (data.type) {
                     case 'sensor_device_connected':
-                        updateSensorStatus(true);
+                        updateSensorStatus(true, 1);
                         break;
                     case 'sensor_device_disconnected':
-                        updateSensorStatus(false);
+                        updateSensorStatus(false, 0);
                         break;
                     case 'sensor_data':
                         // 센서 데이터 수신 (필요시 처리)
+                        break;
+                    case 'registration_success':
+                        // 사용 가능한 센서 수 표시
+                        const availableSensors = data.availableSensors || [];
+                        updateSensorStatus(availableSensors.length > 0, availableSensors.length);
                         break;
                 }
             };
@@ -661,16 +666,16 @@
         }
 
         // 센서 상태 업데이트
-        function updateSensorStatus(connected) {
+        function updateSensorStatus(connected, deviceCount = 0) {
             sensorConnected = connected;
             const statusIcon = document.getElementById('connectionStatus');
             const statusText = document.getElementById('connectionText');
-            const deviceCount = document.getElementById('deviceCount');
+            const deviceCountEl = document.getElementById('deviceCount');
             
-            if (connected) {
+            if (connected && deviceCount > 0) {
                 statusIcon.textContent = '🟢';
                 statusText.textContent = '센서 연결됨';
-                deviceCount.textContent = '1';
+                deviceCountEl.textContent = deviceCount;
                 
                 // 게임 버튼 활성화
                 document.querySelectorAll('.play-button').forEach(btn => {
@@ -680,7 +685,7 @@
             } else {
                 statusIcon.textContent = '🔴';
                 statusText.textContent = '센서 연결 대기중';
-                deviceCount.textContent = '0';
+                deviceCountEl.textContent = '0';
                 
                 // 게임 버튼 비활성화
                 document.querySelectorAll('.play-button').forEach(btn => {
@@ -738,6 +743,7 @@
             
             const game = games.find(g => g.id === gameId);
             if (game) {
+                // 게임 페이지로 이동하면서 센서 매칭 요청
                 window.location.href = game.path;
             }
         }

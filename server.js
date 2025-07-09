@@ -25,6 +25,7 @@ let httpsWss = null;
 const clients = new Map();
 const sensorDevices = new Map();
 const gameClients = new Map();
+const gameSessions = new Map(); // 게임 세션 관리 (sessionId -> {gameClientId, sensorDeviceId})
 let clientIdCounter = 0;
 let serverStats = {
   startTime: Date.now(),
@@ -61,6 +62,61 @@ function initializeDefaultGames() {
     features: ['singleplayer', 'physics'],
     thumbnail: '/games/sample-tilt-ball/thumbnail.png'
   });
+}
+
+/**
+ * 세션 ID 생성 함수
+ */
+function generateSessionId() {
+  return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+}
+
+/**
+ * 센서 디바이스와 게임 클라이언트 매칭
+ */
+function matchSensorToGame(sensorDeviceId, gameClientId) {
+  const sessionId = generateSessionId();
+  
+  gameSessions.set(sessionId, {
+    gameClientId: gameClientId,
+    sensorDeviceId: sensorDeviceId,
+    connectedAt: new Date(),
+    lastActivity: new Date()
+  });
+  
+  // 센서 디바이스에 세션 ID 저장
+  if (sensorDevices.has(sensorDeviceId)) {
+    sensorDevices.get(sensorDeviceId).sessionId = sessionId;
+  }
+  
+  // 게임 클라이언트에 세션 ID 저장
+  if (gameClients.has(gameClientId)) {
+    gameClients.get(gameClientId).sessionId = sessionId;
+  }
+  
+  console.log(`🔗 세션 매칭: ${sensorDeviceId} ↔ ${gameClientId} (세션: ${sessionId})`);
+  return sessionId;
+}
+
+/**
+ * 세션 연결 해제
+ */
+function unmatchSession(sessionId) {
+  const session = gameSessions.get(sessionId);
+  if (session) {
+    // 센서 디바이스에서 세션 ID 제거
+    if (sensorDevices.has(session.sensorDeviceId)) {
+      delete sensorDevices.get(session.sensorDeviceId).sessionId;
+    }
+    
+    // 게임 클라이언트에서 세션 ID 제거
+    if (gameClients.has(session.gameClientId)) {
+      delete gameClients.get(session.gameClientId).sessionId;
+    }
+    
+    gameSessions.delete(sessionId);
+    console.log(`🔌 세션 연결 해제: ${sessionId}`);
+  }
 }
 
 /**
@@ -265,6 +321,14 @@ function handleWebSocketMessage(clientId, data) {
       handlePing(clientId, data);
       break;
       
+    case 'request_sensor_match':
+      handleSensorMatchRequest(clientId, data);
+      break;
+      
+    case 'disconnect_sensor':
+      handleSensorDisconnect(clientId, data);
+      break;
+      
     default:
       console.warn(`⚠️ 알 수 없는 메시지 타입: ${data.type}`);
   }
@@ -387,17 +451,31 @@ function handleSensorData(clientId, data) {
     received: new Date()
   };
   
-  // 모든 게임 클라이언트에게 센서 데이터 전달
-  broadcastToGameClients({
-    type: 'sensor_data',
-    deviceId: data.deviceId,
-    sensorData: sensorDevice.lastSensorData
-  });
+  // 세션 기반 센서 데이터 전달
+  if (sensorDevice.sessionId) {
+    const session = gameSessions.get(sensorDevice.sessionId);
+    if (session) {
+      // 매칭된 게임 클라이언트에게만 센서 데이터 전달
+      const gameClient = clients.get(session.gameClientId);
+      if (gameClient && gameClient.ws.readyState === WebSocket.OPEN) {
+        gameClient.ws.send(JSON.stringify({
+          type: 'sensor_data',
+          deviceId: data.deviceId,
+          sessionId: sensorDevice.sessionId,
+          sensorData: sensorDevice.lastSensorData
+        }));
+      }
+      
+      // 세션 활동 시간 업데이트
+      session.lastActivity = new Date();
+    }
+  }
   
-  // 모든 대시보드 클라이언트에게 센서 데이터 전달
+  // 모든 대시보드 클라이언트에게 센서 데이터 전달 (모니터링용)
   broadcastToDashboards({
     type: 'sensor_data',
     deviceId: data.deviceId,
+    sessionId: sensorDevice.sessionId,
     sensorData: sensorDevice.lastSensorData
   });
 }
@@ -434,6 +512,84 @@ function handlePing(clientId, data) {
 }
 
 /**
+ * 센서 매칭 요청 처리
+ */
+function handleSensorMatchRequest(clientId, data) {
+  const client = clients.get(clientId);
+  if (!client || client.type !== 'game_client') {
+    return;
+  }
+  
+  // 사용 가능한 센서 디바이스 찾기 (세션에 연결되지 않은 것들)
+  const availableSensors = Array.from(sensorDevices.entries())
+    .filter(([deviceId, device]) => !device.sessionId)
+    .map(([deviceId, device]) => ({
+      deviceId: deviceId,
+      deviceType: device.deviceInfo.deviceType,
+      connectedAt: device.registeredAt
+    }));
+  
+  if (availableSensors.length === 0) {
+    client.ws.send(JSON.stringify({
+      type: 'sensor_match_failed',
+      reason: 'no_available_sensors',
+      message: '사용 가능한 센서가 없습니다.'
+    }));
+    return;
+  }
+  
+  // 가장 최근에 연결된 센서 선택
+  const selectedSensor = availableSensors.sort((a, b) => 
+    new Date(b.connectedAt) - new Date(a.connectedAt)
+  )[0];
+  
+  // 세션 매칭
+  const sessionId = matchSensorToGame(selectedSensor.deviceId, clientId);
+  
+  // 게임 클라이언트에 매칭 성공 알림
+  client.ws.send(JSON.stringify({
+    type: 'sensor_matched',
+    sessionId: sessionId,
+    deviceId: selectedSensor.deviceId,
+    deviceType: selectedSensor.deviceType
+  }));
+  
+  // 센서 디바이스에 매칭 성공 알림
+  const sensorDevice = sensorDevices.get(selectedSensor.deviceId);
+  if (sensorDevice) {
+    const sensorClient = clients.get(sensorDevice.clientId);
+    if (sensorClient) {
+      sensorClient.ws.send(JSON.stringify({
+        type: 'matched_to_game',
+        sessionId: sessionId,
+        gameClientId: clientId,
+        gameId: client.metadata.gameId
+      }));
+    }
+  }
+}
+
+/**
+ * 센서 연결 해제 처리
+ */
+function handleSensorDisconnect(clientId, data) {
+  const client = clients.get(clientId);
+  if (!client) return;
+  
+  if (client.type === 'game_client') {
+    const gameClient = gameClients.get(clientId);
+    if (gameClient && gameClient.sessionId) {
+      unmatchSession(gameClient.sessionId);
+    }
+  } else if (client.type === 'sensor_device') {
+    const sensorDevice = sensorDevices.get(client.metadata.deviceId);
+    if (sensorDevice && sensorDevice.sessionId) {
+      unmatchSession(sensorDevice.sessionId);
+    }
+  }
+}
+
+/**
  * 클라이언트 연결 해제 처리
  */
 function handleClientDisconnect(clientId) {
@@ -444,13 +600,27 @@ function handleClientDisconnect(clientId) {
   
   // 센서 디바이스인 경우
   if (client.type === 'sensor_device' && client.metadata.deviceId) {
-    sensorDevices.delete(client.metadata.deviceId);
+    const sensorDevice = sensorDevices.get(client.metadata.deviceId);
     
-    // 게임 클라이언트들에게 센서 연결 해제 알림
-    broadcastToGameClients({
-      type: 'sensor_device_disconnected',
-      deviceId: client.metadata.deviceId
-    });
+    // 연결된 세션이 있으면 해제
+    if (sensorDevice && sensorDevice.sessionId) {
+      const session = gameSessions.get(sensorDevice.sessionId);
+      if (session) {
+        // 매칭된 게임 클라이언트에 센서 연결 해제 알림
+        const gameClient = clients.get(session.gameClientId);
+        if (gameClient && gameClient.ws.readyState === WebSocket.OPEN) {
+          gameClient.ws.send(JSON.stringify({
+            type: 'sensor_device_disconnected',
+            deviceId: client.metadata.deviceId,
+            sessionId: sensorDevice.sessionId
+          }));
+        }
+        
+        unmatchSession(sensorDevice.sessionId);
+      }
+    }
+    
+    sensorDevices.delete(client.metadata.deviceId);
     
     // 대시보드들에게 센서 연결 해제 알림
     broadcastToDashboards({
@@ -461,6 +631,29 @@ function handleClientDisconnect(clientId) {
   
   // 게임 클라이언트인 경우
   if (client.type === 'game_client') {
+    const gameClient = gameClients.get(clientId);
+    
+    // 연결된 세션이 있으면 해제
+    if (gameClient && gameClient.sessionId) {
+      const session = gameSessions.get(gameClient.sessionId);
+      if (session) {
+        // 매칭된 센서 디바이스에 게임 연결 해제 알림
+        const sensorDevice = sensorDevices.get(session.sensorDeviceId);
+        if (sensorDevice) {
+          const sensorClient = clients.get(sensorDevice.clientId);
+          if (sensorClient && sensorClient.ws.readyState === WebSocket.OPEN) {
+            sensorClient.ws.send(JSON.stringify({
+              type: 'game_client_disconnected',
+              gameClientId: clientId,
+              sessionId: gameClient.sessionId
+            }));
+          }
+        }
+        
+        unmatchSession(gameClient.sessionId);
+      }
+    }
+    
     gameClients.delete(clientId);
   }
   
