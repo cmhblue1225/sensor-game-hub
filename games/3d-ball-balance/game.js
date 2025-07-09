@@ -127,11 +127,18 @@ class BallBalanceAdventure extends SensorGameSDK {
      * 라이브러리 로딩 대기
      */
     async waitForLibraries() {
-        const maxAttempts = 30; // 3초 대기
+        const maxAttempts = 50; // 5초 대기
         let attempts = 0;
         
+        console.log('🔄 라이브러리 로딩 대기 중...');
+        
         while (attempts < maxAttempts) {
-            if (typeof THREE !== 'undefined' && typeof CANNON !== 'undefined') {
+            const threeLoaded = typeof THREE !== 'undefined';
+            const cannonLoaded = typeof CANNON !== 'undefined';
+            
+            console.log(`📚 THREE.js: ${threeLoaded ? '✅' : '❌'}, CANNON.js: ${cannonLoaded ? '✅' : '❌'}`);
+            
+            if (threeLoaded && cannonLoaded) {
                 console.log('✅ 필수 라이브러리 로딩 완료');
                 return;
             }
@@ -140,7 +147,14 @@ class BallBalanceAdventure extends SensorGameSDK {
             attempts++;
         }
         
-        throw new Error('라이브러리 로딩 시간 초과');
+        // 최종 확인
+        if (typeof THREE === 'undefined') {
+            throw new Error('THREE.js 라이브러리 로딩 실패 - CDN 연결을 확인하세요');
+        }
+        
+        if (typeof CANNON === 'undefined') {
+            throw new Error('CANNON.js 라이브러리 로딩 실패 - CDN 연결을 확인하세요');
+        }
     }
     
     /**
@@ -1916,5 +1930,9 @@ class BallBalanceAdventure extends SensorGameSDK {
 
 // 게임 인스턴스 생성 (필수)
 document.addEventListener('DOMContentLoaded', () => {
-    window.game = new BallBalanceAdventure();
+    // 약간의 지연을 두어 스크립트 로딩을 확실히 대기
+    setTimeout(() => {
+        console.log('🎮 게임 인스턴스 생성 시작');
+        window.game = new BallBalanceAdventure();
+    }, 500);
 });
