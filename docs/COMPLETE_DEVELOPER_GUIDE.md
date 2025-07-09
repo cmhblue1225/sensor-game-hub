@@ -892,6 +892,126 @@ render() {
 }
 ```
 
+## ⚡ 자동 게임 등록 시스템
+
+**센서 게임 허브 v2.0**은 강력한 **자동 게임 감지 및 등록** 시스템을 제공합니다. 더 이상 수동으로 게임을 등록할 필요가 없습니다!
+
+### 🔍 작동 방식
+
+1. **서버 시작 시 자동 스캔**
+   - `games/` 폴더의 모든 하위 폴더 검색
+   - `index.html`이 있는 폴더만 게임으로 인식
+   - `game.json`이 있으면 메타데이터 로드, 없으면 기본값 생성
+
+2. **런타임 재스캔**
+   - 새 게임 추가 후 서버 재시작 없이 재스캔 가능
+   - API: `POST /api/games/rescan`
+
+3. **자동 메타데이터 생성**
+   - 폴더명을 기반으로 게임 ID 및 이름 자동 생성
+   - 기본 설정값으로 바로 플레이 가능
+
+### 📁 게임 폴더 구조
+
+```
+games/
+├── my-first-game/           # 게임 ID: my-first-game
+│   ├── index.html          # 필수: 게임 진입점
+│   ├── game.js             # 필수: 게임 로직
+│   ├── game.json           # 선택: 메타데이터
+│   └── thumbnail.png       # 선택: 썸네일 이미지
+├── space-adventure/         # 게임 ID: space-adventure
+│   ├── index.html          # 필수
+│   ├── game.js             # 필수
+│   └── assets/             # 선택: 게임 리소스
+└── puzzle-game/            # 게임 ID: puzzle-game
+    ├── index.html          # 필수
+    ├── game.js             # 필수
+    └── game.json           # 선택
+```
+
+### 🔧 자동 생성되는 기본값
+
+`game.json`이 없을 때 자동으로 생성되는 메타데이터:
+
+```javascript
+{
+  id: "folder-name",                              // 폴더명
+  name: "Folder Name",                            // 폴더명을 타이틀 케이스로 변환
+  description: "folder-name 게임",                // 기본 설명
+  author: "Unknown",                              // 기본 작성자
+  version: "1.0.0",                              // 기본 버전
+  category: "casual",                            // 기본 카테고리
+  difficulty: "medium",                          // 기본 난이도
+  icon: "🎮",                                    // 기본 아이콘
+  path: "/games/folder-name",                    // 자동 생성된 경로
+  sensorTypes: ["orientation"],                  // 기본 센서
+  minPlayers: 1,                                 // 기본 플레이어 수
+  maxPlayers: 1,
+  features: ["singleplayer", "sensor-control", "session-based"],
+  thumbnail: "/games/folder-name/thumbnail.png"  // 기본 썸네일 경로
+}
+```
+
+### 🚀 개발 워크플로우
+
+```bash
+# 1. 새 게임 폴더 생성
+mkdir games/my-awesome-game
+cd games/my-awesome-game
+
+# 2. 필수 파일 생성
+touch index.html game.js
+
+# 3. 기본 코드 작성 (LLM 도구 활용 가능)
+# index.html에 기본 HTML 구조
+# game.js에 SensorGameSDK 기반 게임 로직
+
+# 4. 서버 재시작 → 자동 등록!
+npm start
+```
+
+### 📊 게임 재스캔 API
+
+개발 중에 새로운 게임을 추가했을 때 서버 재시작 없이 재스캔:
+
+```bash
+# 게임 재스캔 요청
+curl -X POST http://localhost:8443/api/games/rescan
+
+# 응답 예시
+{
+  "success": true,
+  "message": "3개 게임이 재스캔되었습니다.",
+  "games": [
+    {
+      "id": "my-first-game",
+      "name": "My First Game",
+      "playCount": 5,
+      "registeredAt": "2024-01-01T00:00:00.000Z"
+    },
+    // ... 더 많은 게임들
+  ]
+}
+```
+
+### ⚠️ 주의사항
+
+1. **필수 파일**: `index.html`이 없는 폴더는 무시됩니다
+2. **게임 ID**: 폴더명이 게임 ID가 되므로 고유해야 합니다
+3. **JSON 문법**: `game.json`에 문법 오류가 있으면 기본값을 사용합니다
+4. **실시간 반영**: 파일 변경 후 브라우저 새로고침 필요
+
+### 🎯 LLM 도구와 연동
+
+이 자동 등록 시스템은 **Claude Code, Gemini CLI** 등 AI 개발 도구와 완벽하게 연동됩니다:
+
+```
+1. LLM에게 게임 개발 요청
+2. games/폴더에 파일 생성
+3. 서버 재시작 → 자동 등록 완료!
+```
+
 ## 🌐 배포하기
 
 ### Render 배포 (권장)

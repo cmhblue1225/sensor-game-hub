@@ -603,4 +603,43 @@ class ParticlePool {
 - [ ] 메모리 누수 없음
 - [ ] 부드러운 센서 반응
 
+## ⚡ 자동 게임 등록 시스템
+
+**센서 게임 허브 v2.0**은 **자동 게임 감지 및 등록** 시스템을 제공합니다:
+
+### 작동 방식
+1. **서버 시작 시**: `games/` 폴더 전체 스캔 후 자동 등록
+2. **런타임 중**: `POST /api/games/rescan` API로 수동 재스캔 가능
+3. **실시간 반영**: 새로운 게임 추가 시 서버 재시작 또는 재스캔으로 즉시 등록
+
+### 자동 등록 규칙
+- **필수 파일**: `index.html` (게임 진입점)
+- **선택 파일**: `game.json` (메타데이터), `thumbnail.png` (썸네일)
+- **게임 ID**: 폴더명이 자동으로 게임 ID가 됨
+- **스킵 조건**: `index.html`이 없는 폴더는 자동 스킵
+
+### 개발 워크플로우
+```
+1. games/my-game/ 폴더 생성
+2. index.html, game.js 파일 추가
+3. (선택) game.json 메타데이터 추가
+4. 서버 재시작 → 자동 등록 완료!
+```
+
+### 메타데이터 자동 생성
+`game.json`이 없어도 자동으로 기본 메타데이터가 생성됩니다:
+```javascript
+// 자동 생성되는 기본값
+{
+  id: "folder-name",
+  name: "Folder Name", // 폴더명을 타이틀 케이스로 변환
+  description: "folder-name 게임",
+  author: "Unknown",
+  category: "casual",
+  difficulty: "medium",
+  icon: "🎮",
+  sensorTypes: ["orientation"]
+}
+```
+
 이 가이드를 정확히 따라 개발하면 센서 게임 허브 v2.0과 100% 호환되는 게임을 만들 수 있습니다. 🎮✨

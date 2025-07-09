@@ -44,7 +44,97 @@ app.use(express.static(path.join(__dirname)));
  */
 const gameRegistry = new Map();
 
-// 기본 등록된 게임들
+/**
+ * games 폴더의 모든 게임을 자동으로 스캔하고 등록
+ */
+async function scanAndRegisterGames() {
+  const gamesDir = path.join(__dirname, 'games');
+  
+  try {
+    if (!fs.existsSync(gamesDir)) {
+      console.log('📁 games 폴더가 존재하지 않습니다. 생성합니다...');
+      fs.mkdirSync(gamesDir, { recursive: true });
+      return;
+    }
+    
+    const gameDirectories = fs.readdirSync(gamesDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+    
+    console.log(`🔍 게임 폴더 스캔 중... (${gameDirectories.length}개 발견)`);
+    
+    let registeredCount = 0;
+    
+    for (const gameDir of gameDirectories) {
+      const gamePath = path.join(gamesDir, gameDir);
+      const indexPath = path.join(gamePath, 'index.html');
+      const gameJsonPath = path.join(gamePath, 'game.json');
+      
+      // index.html이 없으면 스킵
+      if (!fs.existsSync(indexPath)) {
+        console.warn(`⚠️ ${gameDir}: index.html이 없어 스킵합니다.`);
+        continue;
+      }
+      
+      let gameInfo = {
+        id: gameDir,
+        name: gameDir.charAt(0).toUpperCase() + gameDir.slice(1).replace(/-/g, ' '),
+        description: `${gameDir} 게임`,
+        author: 'Unknown',
+        version: '1.0.0',
+        category: 'casual',
+        difficulty: 'medium',
+        icon: '🎮',
+        path: `/games/${gameDir}`,
+        sensorTypes: ['orientation'],
+        minPlayers: 1,
+        maxPlayers: 1,
+        features: ['singleplayer', 'sensor-control', 'session-based'],
+        thumbnail: `/games/${gameDir}/thumbnail.png`
+      };
+      
+      // game.json이 있으면 메타데이터 로드
+      if (fs.existsSync(gameJsonPath)) {
+        try {
+          const gameMetadata = JSON.parse(fs.readFileSync(gameJsonPath, 'utf8'));
+          
+          // 기본값과 병합
+          gameInfo = {
+            ...gameInfo,
+            ...gameMetadata,
+            id: gameDir, // ID는 폴더명으로 강제 설정
+            path: `/games/${gameDir}`, // 경로는 자동 설정
+            thumbnail: gameMetadata.thumbnail || gameInfo.thumbnail
+          };
+          
+          console.log(`📋 ${gameDir}: game.json 메타데이터 로드됨`);
+        } catch (error) {
+          console.warn(`⚠️ ${gameDir}: game.json 파싱 오류, 기본값 사용 - ${error.message}`);
+        }
+      } else {
+        console.log(`📋 ${gameDir}: game.json 없음, 기본값 사용`);
+      }
+      
+      // 게임 등록
+      registerGame(gameInfo);
+      registeredCount++;
+    }
+    
+    console.log(`✅ 총 ${registeredCount}개 게임이 등록되었습니다.`);
+    
+    if (registeredCount === 0) {
+      console.log('💡 games 폴더에 게임이 없습니다. 샘플 게임을 등록합니다...');
+      initializeDefaultGames();
+    }
+    
+  } catch (error) {
+    console.error('❌ 게임 스캔 중 오류 발생:', error);
+    console.log('💡 샘플 게임을 등록합니다...');
+    initializeDefaultGames();
+  }
+}
+
+// 기본 샘플 게임 (games 폴더가 비어있을 때만 사용)
 function initializeDefaultGames() {
   registerGame({
     id: 'sample-tilt-ball',
@@ -59,7 +149,7 @@ function initializeDefaultGames() {
     sensorTypes: ['orientation'],
     minPlayers: 1,
     maxPlayers: 1,
-    features: ['singleplayer', 'physics'],
+    features: ['singleplayer', 'physics', 'session-based'],
     thumbnail: '/games/sample-tilt-ball/thumbnail.png'
   });
 }
@@ -205,6 +295,54 @@ app.get('/api/status', (req, res) => {
       activeGames: Array.from(gameRegistry.values()).filter(g => g.isActive).length
     }
   });
+});
+
+// 게임 재스캔 API (개발/관리용)
+app.post('/api/games/rescan', async (req, res) => {
+  try {
+    console.log('🔄 게임 재스캔 요청됨...');
+    
+    // 기존 등록된 게임들 임시 저장 (플레이 카운트 등 보존)
+    const existingGames = new Map();
+    for (const [gameId, gameInfo] of gameRegistry.entries()) {
+      existingGames.set(gameId, {
+        playCount: gameInfo.playCount,
+        rating: gameInfo.rating,
+        reviews: gameInfo.reviews
+      });
+    }
+    
+    // 게임 레지스트리 초기화
+    gameRegistry.clear();
+    
+    // 게임 재스캔
+    await scanAndRegisterGames();
+    
+    // 기존 데이터 복원
+    for (const [gameId, gameInfo] of gameRegistry.entries()) {
+      if (existingGames.has(gameId)) {
+        const existingData = existingGames.get(gameId);
+        gameInfo.playCount = existingData.playCount;
+        gameInfo.rating = existingData.rating;
+        gameInfo.reviews = existingData.reviews;
+      }
+    }
+    
+    const games = Array.from(gameRegistry.values());
+    res.json({
+      success: true,
+      message: `${games.length}개 게임이 재스캔되었습니다.`,
+      games: games
+    });
+    
+  } catch (error) {
+    console.error('❌ 게임 재스캔 오류:', error);
+    res.status(500).json({
+      success: false,
+      error: '게임 재스캔 중 오류가 발생했습니다.',
+      details: error.message
+    });
+  }
 });
 
 // 센서 클라이언트 페이지
@@ -1002,8 +1140,8 @@ if (process.env.NODE_ENV !== 'production') {
  * 서버 시작 (HTTPS 전용)
  */
 async function startServer() {
-  // 기본 게임들 초기화
-  initializeDefaultGames();
+  // games 폴더의 모든 게임을 자동으로 스캔하고 등록
+  await scanAndRegisterGames();
   
   // 서버 설정 및 시작
   await setupAndStartServer();
