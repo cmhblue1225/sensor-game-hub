@@ -88,6 +88,9 @@ class BallBalanceAdventure extends SensorGameSDK {
             // 로딩 화면 표시
             this.showLoadingScreen(true);
             
+            // 라이브러리 로딩 대기
+            await this.waitForLibraries();
+            
             // Three.js 및 물리 엔진 초기화
             await this.initializeEngine();
             
@@ -121,9 +124,37 @@ class BallBalanceAdventure extends SensorGameSDK {
     }
     
     /**
+     * 라이브러리 로딩 대기
+     */
+    async waitForLibraries() {
+        const maxAttempts = 30; // 3초 대기
+        let attempts = 0;
+        
+        while (attempts < maxAttempts) {
+            if (typeof THREE !== 'undefined' && typeof CANNON !== 'undefined') {
+                console.log('✅ 필수 라이브러리 로딩 완료');
+                return;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        throw new Error('라이브러리 로딩 시간 초과');
+    }
+    
+    /**
      * Three.js 및 물리 엔진 초기화
      */
     async initializeEngine() {
+        // 필수 라이브러리 체크
+        if (typeof THREE === 'undefined') {
+            throw new Error('Three.js 라이브러리가 로드되지 않았습니다.');
+        }
+        
+        if (typeof CANNON === 'undefined') {
+            throw new Error('CANNON.js 물리 엔진이 로드되지 않았습니다.');
+        }
         // 캔버스 설정
         this.canvas = document.getElementById('gameCanvas');
         
