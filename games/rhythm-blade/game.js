@@ -318,5 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.game = new RhythmBlade();
     // Apply the initial settings to start the game immediately
-    window.game.applySettings();
+    window.game.applySettings(); 
+    window.game.hideEditor(); // Ensure editor is hidden on start
 });
