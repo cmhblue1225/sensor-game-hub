@@ -11,7 +11,7 @@ class RhythmBlade extends SensorGameSDK {
             gameName: 'Rhythm Blade',
             requestedSensors: ['gyroscope', 'accelerometer'],
             sensorSensitivity: {
-                gyroscope: 2.0,
+                gyroscope: 1.0, // 감도를 낮춤 (더 강한 움직임 필요)
                 accelerometer: 1.0,
             },
             smoothingFactor: 2, // Adjusted to a valid range (1-10)
@@ -155,7 +155,7 @@ class RhythmBlade extends SensorGameSDK {
         console.log('Sensor Data:', gameInput); // Log sensor data
         if (!this.gameState.isPlaying) return;
 
-        const swingThreshold = 40; // Adjusted swing detection sensitivity
+        const swingThreshold = 100; // 스윙 인식 기준을 높여 둔감하게 만듦
 
         // Use rotation speed and direction from the SDK's processed gameInput
         const speed = gameInput.rotation.speed;
