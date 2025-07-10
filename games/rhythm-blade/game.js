@@ -151,6 +151,7 @@ class RhythmBlade extends SensorGameSDK {
     }
 
     handleSensorInput(gameInput) {
+        console.log('Sensor Data:', gameInput); // Log sensor data
         if (!this.gameState.isPlaying) return;
 
         const swingThreshold = 80; // Increased sensitivity for 3D
