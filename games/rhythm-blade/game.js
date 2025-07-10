@@ -300,4 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { "time": 6.75, "lane": "right" }
     ];
     noteSequenceTextarea.value = JSON.stringify(defaultBeatmap, null, 2);
+    
+    // Apply the initial settings to start the game immediately
+    window.game.applySettings();
 });
