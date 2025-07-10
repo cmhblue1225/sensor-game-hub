@@ -71,6 +71,7 @@ class RhythmBlade extends SensorGameSDK {
 
         this.notes = [];
         this.noteSpawnIndex = 0;
+        this.particleEffects = [];
 
         this.on('onSensorData', (gameInput) => this.handleSensorInput(gameInput));
         this.on('onSensorStatusChange', (status) => this.updateSensorStatus(status.connected));
@@ -182,23 +183,74 @@ class RhythmBlade extends SensorGameSDK {
     }
 
     checkHit(side) {
-        const hitZone = { minZ: 3.5, maxZ: 5.5 };
+        const saber = this.sabers[side];
+        const saberBox = new THREE.Box3().setFromObject(saber);
         let hit = false;
 
         for (let i = this.notes.length - 1; i >= 0; i--) {
             const note = this.notes[i];
-            if (note.userData.lane === side && note.position.z >= hitZone.minZ && note.position.z <= hitZone.maxZ) {
+            const noteBox = new THREE.Box3().setFromObject(note);
+
+            if (note.userData.lane === side && saberBox.intersectsBox(noteBox)) {
+                this.createHitEffect(note.position, note.material.color);
                 this.scene.remove(note);
                 this.notes.splice(i, 1);
                 
                 this.gameState.score += 100;
                 this.gameState.combo++;
                 hit = true;
-                break;
+                break; // One hit per swing
             }
         }
         if (!hit) {
             this.gameState.combo = 0;
+        }
+    }
+
+    createHitEffect(position, color) {
+        const particleCount = 20;
+        const particles = new THREE.Group();
+        const particleMaterial = new THREE.MeshBasicMaterial({ color: color });
+
+        for (let i = 0; i < particleCount; i++) {
+            const particleGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            particle.position.copy(position);
+
+            particle.userData.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            );
+            particle.userData.life = 1;
+
+            particles.add(particle);
+        }
+
+        this.particleEffects.push(particles);
+        this.scene.add(particles);
+    }
+
+    updateEffects() {
+        for (let i = this.particleEffects.length - 1; i >= 0; i--) {
+            const particleGroup = this.particleEffects[i];
+            let allParticlesDead = true;
+
+            particleGroup.children.forEach(particle => {
+                if (particle.userData.life > 0) {
+                    allParticlesDead = false;
+                    particle.position.add(particle.userData.velocity.clone().multiplyScalar(0.1));
+                    particle.userData.life -= 0.02;
+                    particle.scale.setScalar(particle.userData.life);
+                } else {
+                    particle.visible = false;
+                }
+            });
+
+            if (allParticlesDead) {
+                this.scene.remove(particleGroup);
+                this.particleEffects.splice(i, 1);
+            }
         }
     }
 
@@ -251,6 +303,9 @@ class RhythmBlade extends SensorGameSDK {
         // Update saber animations
         this.updateSaber(this.sabers.left, now, -1);
         this.updateSaber(this.sabers.right, now, 1);
+
+        // Update particle effects
+        this.updateEffects();
     }
 
     updateSaber(saber, now, direction) {
