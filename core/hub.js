@@ -15,6 +15,19 @@ class SensorGameHub {
             connectedSensors: 0
         };
         
+        // 재연결 관리
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 1000;
+        this.reconnectTimer = null;
+        
+        // 성능 모니터링
+        this.performanceMetrics = {
+            latency: 0,
+            lastUpdate: Date.now(),
+            connectionHealth: 'good'
+        };
+        
         this.init();
     }
     
@@ -52,8 +65,15 @@ class SensorGameHub {
             
             this.socket.onopen = () => {
                 this.isConnected = true;
+                this.reconnectAttempts = 0; // 재연결 성공 시 카운터 리셋
                 console.log('✅ 허브 서버 연결 성공');
                 this.updateConnectionStatus(true);
+                
+                // 연결 오류 메시지 숨기기
+                const errorElement = document.getElementById('connectionError');
+                if (errorElement) {
+                    errorElement.style.display = 'none';
+                }
                 
                 // 허브 클라이언트로 등록
                 this.socket.send(JSON.stringify({
@@ -71,13 +91,15 @@ class SensorGameHub {
                 }
             };
             
-            this.socket.onclose = () => {
+            this.socket.onclose = (event) => {
                 this.isConnected = false;
-                console.log('🔌 서버 연결 끊김');
+                console.log('🔌 서버 연결 끊김:', event.code, event.reason);
                 this.updateConnectionStatus(false);
                 
-                // 재연결 시도
-                setTimeout(() => this.connectToServer(), 5000);
+                // 지수 백오프를 사용한 재연결
+                if (event.code !== 1000) { // 정상 종료가 아닌 경우만 재연결
+                    this.handleReconnect();
+                }
             };
             
             this.socket.onerror = (error) => {
@@ -121,6 +143,15 @@ class SensorGameHub {
                 
             case 'pong':
                 this.updateLatency(data);
+                this.updateConnectionHealth();
+                break;
+                
+            case 'server_status':
+                if (data.stats) {
+                    this.stats.activePlayers = data.stats.activeGameClients || 0;
+                    this.stats.connectedSensors = data.stats.activeSensorDevices || 0;
+                    this.updateStats();
+                }
                 break;
         }
     }
@@ -397,14 +428,97 @@ class SensorGameHub {
     }
     
     /**
+     * 재연결 처리 (지수 백오프)
+     */
+    handleReconnect() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('❌ 최대 재연결 시도 횟수 초과');
+            this.showConnectionError('서버 연결에 실패했습니다. 페이지를 새로고침하세요.');
+            return;
+        }
+        
+        this.reconnectAttempts++;
+        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+        
+        console.log(`🔄 재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts} (${delay}ms 후)`);
+        
+        this.reconnectTimer = setTimeout(() => {
+            this.connectToServer();
+        }, delay);
+    }
+    
+    /**
+     * 연결 오류 표시
+     */
+    showConnectionError(message) {
+        const errorElement = document.getElementById('connectionError');
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+    }
+    
+    /**
+     * 연결 상태 건강도 업데이트
+     */
+    updateConnectionHealth() {
+        const now = Date.now();
+        const timeSinceLastUpdate = now - this.performanceMetrics.lastUpdate;
+        
+        if (timeSinceLastUpdate > 30000) { // 30초 이상
+            this.performanceMetrics.connectionHealth = 'poor';
+        } else if (timeSinceLastUpdate > 10000) { // 10초 이상
+            this.performanceMetrics.connectionHealth = 'fair';
+        } else {
+            this.performanceMetrics.connectionHealth = 'good';
+        }
+        
+        this.performanceMetrics.lastUpdate = now;
+        this.updatePerformanceDisplay();
+    }
+    
+    /**
+     * 성능 지표 표시 업데이트
+     */
+    updatePerformanceDisplay() {
+        const healthElement = document.getElementById('connectionHealth');
+        if (healthElement) {
+            const health = this.performanceMetrics.connectionHealth;
+            const healthColors = {
+                good: '#00ff88',
+                fair: '#ffaa00', 
+                poor: '#ff4757'
+            };
+            const healthLabels = {
+                good: '양호',
+                fair: '보통',
+                poor: '불량'
+            };
+            
+            healthElement.textContent = healthLabels[health];
+            healthElement.style.color = healthColors[health];
+        }
+    }
+    
+    /**
      * 지연시간 업데이트
      */
     updateLatency(data) {
         const latency = Date.now() - data.timestamp;
-        const latencyElement = document.getElementById('latency');
+        this.performanceMetrics.latency = latency;
         
+        const latencyElement = document.getElementById('latency');
         if (latencyElement) {
             latencyElement.textContent = `${latency}ms`;
+            
+            // 지연시간에 따른 색상 변경
+            if (latency < 100) {
+                latencyElement.style.color = '#00ff88';
+            } else if (latency < 300) {
+                latencyElement.style.color = '#ffaa00';
+            } else {
+                latencyElement.style.color = '#ff4757';
+            }
         }
     }
     
@@ -439,13 +553,18 @@ class SensorGameHub {
         
         // 5초마다 ping 전송 (지연시간 측정)
         setInterval(() => {
-            if (this.isConnected && this.socket) {
+            if (this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
                     type: 'ping',
                     timestamp: Date.now()
                 }));
             }
         }, 5000);
+        
+        // 연결 상태 건강도 모니터링
+        setInterval(() => {
+            this.updateConnectionHealth();
+        }, 10000);
     }
     
     /**

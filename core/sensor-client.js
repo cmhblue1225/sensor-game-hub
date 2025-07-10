@@ -10,6 +10,20 @@ class SensorClient {
         this.deviceId = 'sensor-' + Math.random().toString(36).substr(2, 9);
         this.isTransmitting = false;
         
+        // 재연결 관리
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 1000;
+        this.reconnectTimer = null;
+        
+        // 성능 모니터링
+        this.performanceMetrics = {
+            latency: 0,
+            lastUpdate: Date.now(),
+            connectionHealth: 'good',
+            packetsLost: 0
+        };
+        
         // 센서 데이터
         this.sensorData = {
             orientation: { alpha: 0, beta: 0, gamma: 0 },
@@ -245,8 +259,10 @@ class SensorClient {
             
             this.socket.onopen = () => {
                 this.isConnected = true;
+                this.reconnectAttempts = 0; // 재연결 성공 시 카운터 리셋
                 console.log('✅ 서버 연결 성공');
                 this.updateConnectionStatus('connected');
+                this.hideError();
                 
                 // 센서 디바이스로 등록
                 this.socket.send(JSON.stringify({
@@ -271,14 +287,16 @@ class SensorClient {
                 }
             };
             
-            this.socket.onclose = () => {
+            this.socket.onclose = (event) => {
                 this.isConnected = false;
                 this.isTransmitting = false;
-                console.log('🔌 서버 연결 끊김');
+                console.log('🔌 서버 연결 끊김:', event.code, event.reason);
                 this.updateConnectionStatus('disconnected');
                 
-                // 재연결 시도
-                setTimeout(() => this.connectToServer(), 3000);
+                // 정상 종료가 아닌 경우에만 재연결
+                if (event.code !== 1000) {
+                    this.handleReconnect();
+                }
             };
             
             this.socket.onerror = (error) => {
@@ -442,6 +460,15 @@ class SensorClient {
                 statusText.textContent = '연결 중...';
                 connectionState.textContent = '연결 중';
                 break;
+            case 'reconnecting':
+                statusIcon.textContent = '🔄';
+                statusText.textContent = `재연결 중... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`;
+                connectionState.textContent = '재연결 중';
+                break;
+            default:
+                statusIcon.textContent = '🔴';
+                statusText.textContent = '알 수 없음';
+                connectionState.textContent = '알 수 없음';
         }
     }
     
@@ -487,6 +514,55 @@ class SensorClient {
         
         // 초당 패킷 수 리셋
         this.stats.lastSecondPackets = 0;
+    }
+    
+    /**
+     * 재연결 처리 (지수 백오프)
+     */
+    handleReconnect() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('❌ 최대 재연결 시도 횟수 초과');
+            this.showError('서버 연결에 실패했습니다. 페이지를 새로고침하세요.');
+            return;
+        }
+        
+        this.reconnectAttempts++;
+        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+        
+        console.log(`🔄 재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts} (${delay}ms 후)`);
+        this.updateConnectionStatus('reconnecting');
+        
+        this.reconnectTimer = setTimeout(() => {
+            this.connectToServer();
+        }, delay);
+    }
+    
+    /**
+     * 연결 상태 건강도 업데이트
+     */
+    updateConnectionHealth() {
+        const now = Date.now();
+        const timeSinceLastUpdate = now - this.performanceMetrics.lastUpdate;
+        
+        if (timeSinceLastUpdate > 30000) { // 30초 이상
+            this.performanceMetrics.connectionHealth = 'poor';
+        } else if (timeSinceLastUpdate > 10000) { // 10초 이상
+            this.performanceMetrics.connectionHealth = 'fair';
+        } else {
+            this.performanceMetrics.connectionHealth = 'good';
+        }
+        
+        this.performanceMetrics.lastUpdate = now;
+    }
+    
+    /**
+     * 에러 메시지 숨기기
+     */
+    hideError() {
+        const errorDiv = document.getElementById('errorMessage');
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
     }
     
     /**

@@ -505,12 +505,20 @@
                                 <span class="status-label">지연시간:</span>
                                 <span class="status-value" id="latency">-</span>
                             </div>
+                            <div class="status-item">
+                                <span class="status-label">연결 상태:</span>
+                                <span class="status-value" id="connectionHealth">확인중</span>
+                            </div>
                         </div>
                         <div style="text-align: center; margin-top: 1rem;">
                             <p>📱 모바일 기기에서 센서를 연결하세요</p>
                             <p style="font-size: 0.9rem; opacity: 0.8;">
                                 모바일 기기로 <strong>https://[현재IP]:8443</strong> 접속 후 모바일 모드 선택
                             </p>
+                            
+                            <!-- 연결 오류 메시지 -->
+                            <div id="connectionError" style="display: none; background: #ff4757; color: white; padding: 1rem; border-radius: 12px; margin-top: 1rem; font-size: 0.9rem;">
+                            </div>
                         </div>
                     </div>
                 </div>
