@@ -14,12 +14,88 @@
         #editor-container textarea { resize: vertical; }
         #editor-container button { background-color: #4d96ff; cursor: pointer; margin-top: 20px; }
         #show-editor-btn { position: absolute; top: 20px; left: 20px; z-index: 100; padding: 10px 15px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer; }
+
+        /* Gauge Bar Styles */
+        #gauge-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 600px;
+            height: 20px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 90;
+        }
+        #gauge-bar {
+            height: 100%;
+            width: 100%; /* Initial width */
+            background-color: #4CAF50; /* Green */
+            border-radius: 10px;
+            transition: width 0.1s linear; /* Smooth transition */
+        }
+
+        /* Game Over Modal Styles */
+        #game-over-modal {
+            display: none; /* Hidden by default */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 120;
+            justify-content: center;
+            align-items: center;
+        }
+        #game-over-content {
+            background-color: #1a1a2e;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            box-shadow: 0 0 30px rgba(0,0,0,0.7);
+        }
+        #game-over-title {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        #final-score {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        #game-over-content button {
+            margin-top: 30px;
+            padding: 12px 25px;
+            font-size: 1.2em;
+            background-color: #667eea;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #game-over-content button:hover {
+            background-color: #5a6fd8;
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
         <button id="show-editor-btn">Edit Settings</button>
+        <div id="gauge-container">
+            <div id="gauge-bar"></div>
+        </div>
         <!-- The canvas will be appended here by game.js -->
+    </div>
+
+    <div id="game-over-modal">
+        <div id="game-over-content">
+            <h2 id="game-over-title">Game Clear</h2>
+            <p>Clear Rate: <span id="final-score">100</span>%</p>
+            <button id="restart-btn">Restart Game</button>
+        </div>
     </div>
 
     <div id="editor-container">

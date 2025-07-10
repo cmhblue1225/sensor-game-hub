@@ -31,6 +31,10 @@ class RhythmBlade extends SensorGameSDK {
             combo: 0,
             isPlaying: false,
             startTime: 0,
+            totalNotes: 0,     // 총 노트 수
+            missedNotes: 0,    // 놓친 노트 수
+            notesProcessed: 0, // 처리된 노트 수 (친 노트 + 놓친 노트)
+            gaugePercent: 100  // 게이지 퍼센트
         };
 
         // Game settings from editor
@@ -53,6 +57,11 @@ class RhythmBlade extends SensorGameSDK {
         // UI Elements
         this.editorContainer = document.getElementById('editor-container');
         this.showEditorBtn = document.getElementById('show-editor-btn');
+        this.gaugeBar = document.getElementById('gauge-bar');
+        this.gameOverModal = document.getElementById('game-over-modal');
+        this.gameOverTitle = document.getElementById('game-over-title');
+        this.finalScore = document.getElementById('final-score');
+        this.restartGameBtn = document.getElementById('restart-btn');
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040);
@@ -107,6 +116,7 @@ class RhythmBlade extends SensorGameSDK {
     setupEventListeners() {
         document.getElementById('apply-settings').addEventListener('click', () => this.applySettings());
         this.showEditorBtn.addEventListener('click', () => this.showEditor());
+        this.restartGameBtn.addEventListener('click', () => this.restartGame());
         window.addEventListener('resize', () => this.onWindowResize(), false);
         this.updateSensorStatus(this.sensorConnected);
     }
@@ -129,11 +139,30 @@ class RhythmBlade extends SensorGameSDK {
         const noteSequenceText = document.getElementById('note-sequence').value;
         try {
             this.settings.noteSequence = JSON.parse(noteSequenceText);
+            this.gameState.totalNotes = this.settings.noteSequence.length; // Calculate total notes
             this.hideEditor();
             this.restartGame();
         } catch (e) {
             alert('Invalid JSON in Note Sequence. Please check the format.');
             console.error("JSON Parse Error:", e);
+        }
+    }
+
+    updateGauge() {
+        if (this.gameState.totalNotes === 0) {
+            this.gameState.gaugePercent = 100;
+        } else {
+            const missedPercentage = (this.gameState.missedNotes / this.gameState.totalNotes) * 100;
+            this.gameState.gaugePercent = 100 - missedPercentage;
+        }
+        this.gaugeBar.style.width = `${this.gameState.gaugePercent}%`;
+        // Change color based on percentage
+        if (this.gameState.gaugePercent > 80) {
+            this.gaugeBar.style.backgroundColor = '#4CAF50'; // Green
+        } else if (this.gameState.gaugePercent > 40) {
+            this.gaugeBar.style.backgroundColor = '#FFC107'; // Yellow
+        } else {
+            this.gaugeBar.style.backgroundColor = '#F44336'; // Red
         }
     }
 
@@ -143,12 +172,19 @@ class RhythmBlade extends SensorGameSDK {
         this.gameState.isPlaying = true;
         this.gameState.startTime = Date.now();
         this.noteSpawnIndex = 0;
+        this.gameState.missedNotes = 0;
+        this.gameState.notesProcessed = 0;
+        this.gameState.gaugePercent = 100;
 
         // Clear existing notes
         this.notes.forEach(note => this.scene.remove(note));
         this.notes = [];
 
+        // Hide game over modal if visible
+        this.gameOverModal.style.display = 'none';
+
         console.log("Game restarted with new settings.");
+        this.updateGauge(); // Update gauge to 100% on restart
     }
 
     handleSensorInput(gameInput) {
@@ -198,6 +234,7 @@ class RhythmBlade extends SensorGameSDK {
                 
                 this.gameState.score += 100;
                 this.gameState.combo++;
+                this.gameState.notesProcessed++; // Increment processed notes
                 hit = true;
                 break; // One hit per swing
             }
@@ -205,6 +242,7 @@ class RhythmBlade extends SensorGameSDK {
         if (!hit) {
             this.gameState.combo = 0;
         }
+        this.updateGauge(); // Update gauge after hit or miss
     }
 
     createHitEffect(position, color) {
@@ -294,7 +332,15 @@ class RhythmBlade extends SensorGameSDK {
                 this.scene.remove(note);
                 this.notes.splice(i, 1);
                 this.gameState.combo = 0;
+                this.gameState.missedNotes++; // Increment missed notes
+                this.gameState.notesProcessed++; // Increment processed notes
+                this.updateGauge(); // Update gauge
             }
+        }
+
+        // Check if all notes have been processed
+        if (this.gameState.notesProcessed >= this.gameState.totalNotes && this.gameState.totalNotes > 0) {
+            this.endGame();
         }
 
         // Spawn new notes
@@ -306,6 +352,22 @@ class RhythmBlade extends SensorGameSDK {
 
         // Update particle effects
         this.updateEffects();
+    }
+
+    endGame() {
+        this.gameState.isPlaying = false;
+        this.gameOverModal.style.display = 'flex'; // Show modal
+
+        const finalPercentage = Math.max(0, this.gameState.gaugePercent);
+        this.finalScore.textContent = finalPercentage.toFixed(2);
+
+        if (finalPercentage >= 60) {
+            this.gameOverTitle.textContent = 'Game Clear!';
+            this.gameOverTitle.style.color = '#00ff88';
+        } else {
+            this.gameOverTitle.textContent = 'Clear Failed';
+            this.gameOverTitle.style.color = '#ff6b6b';
+        }
     }
 
     updateSaber(saber, now, direction) {
