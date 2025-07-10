@@ -134,19 +134,38 @@
         </div>
     </div>
     
+    <style>
+    body { margin: 0; overflow: hidden; background-color: #000; }
+    #game-container { position: relative; width: 100vw; height: 100vh; }
+    #editor-container { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(30, 30, 45, 0.95); color: white; padding: 25px; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.5); z-index: 110; width: 80%; max-width: 500px; }
+    #editor-container h3 { text-align: center; margin-top: 0; }
+    #editor-container label { margin-top: 10px; display: block; }
+    #editor-container input, #editor-container textarea, #editor-container button { width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #555; background: #333; color: #fff; box-sizing: border-box; }
+    #editor-container textarea { resize: vertical; }
+    #editor-container button { background-color: #4d96ff; cursor: pointer; margin-top: 20px; }
+    #show-editor-btn { position: absolute; top: 20px; left: 20px; z-index: 100; padding: 10px 15px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer; }
+</style>
+</head>
+<body>
+    <div id="game-container">
+        <button id="show-editor-btn">Edit Settings</button>
+        <!-- The canvas will be appended here by game.js -->
+    </div>
+
+    <div id="editor-container">
+        <h3>Game Editor</h3>
+        <label for="cube-speed">Cube Speed:</label>
+        <input type="number" id="cube-speed" value="10">
+        <label for="spawn-distance">Spawn Distance:</label>
+        <input type="number" id="spawn-distance" value="100">
+        <label for="note-sequence">Note Sequence (JSON):</label>
+        <textarea id="note-sequence" rows="10" cols="30"></textarea>
+        <button id="apply-settings">Apply and Restart Game</button>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../../sdk/sensor-game-sdk.js"></script>
-<script src="game.js"></script>
-<div id="editor-container" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 10px; z-index: 100;">
-    <h3>Game Editor</h3>
-    <label for="cube-speed">Cube Speed:</label>
-    <input type="number" id="cube-speed" value="10"><br>
-    <label for="spawn-distance">Spawn Distance:</label>
-    <input type="number" id="spawn-distance" value="100"><br>
-    <label for="note-sequence">Note Sequence (JSON):</label><br>
-    <textarea id="note-sequence" rows="10" cols="30"></textarea><br>
-    <button id="apply-settings">Apply Settings</button>
-</div>
+    <script src="../../sdk/sensor-game-sdk.js"></script>
+    <script src="game.js"></script>
 
 </body>
 </html>

@@ -48,7 +48,11 @@ class RhythmBlade extends SensorGameSDK {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(this.renderer.domElement);
+        document.getElementById('game-container').appendChild(this.renderer.domElement);
+
+        // UI Elements
+        this.editorContainer = document.getElementById('editor-container');
+        this.showEditorBtn = document.getElementById('show-editor-btn');
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040);
@@ -101,8 +105,20 @@ class RhythmBlade extends SensorGameSDK {
 
     setupEventListeners() {
         document.getElementById('apply-settings').addEventListener('click', () => this.applySettings());
+        this.showEditorBtn.addEventListener('click', () => this.showEditor());
         window.addEventListener('resize', () => this.onWindowResize(), false);
         this.updateSensorStatus(this.sensorConnected);
+    }
+
+    showEditor() {
+        this.gameState.isPlaying = false; // Pause the game
+        this.editorContainer.style.display = 'block';
+        this.showEditorBtn.style.display = 'none';
+    }
+
+    hideEditor() {
+        this.editorContainer.style.display = 'none';
+        this.showEditorBtn.style.display = 'block';
     }
 
     applySettings() {
@@ -112,6 +128,7 @@ class RhythmBlade extends SensorGameSDK {
         const noteSequenceText = document.getElementById('note-sequence').value;
         try {
             this.settings.noteSequence = JSON.parse(noteSequenceText);
+            this.hideEditor();
             this.restartGame();
         } catch (e) {
             alert('Invalid JSON in Note Sequence. Please check the format.');
@@ -284,8 +301,6 @@ class RhythmBlade extends SensorGameSDK {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.game = new RhythmBlade();
-    // Provide default beatmap for testing
     const noteSequenceTextarea = document.getElementById('note-sequence');
     const defaultBeatmap = [
         { "time": 2, "lane": "left" },
@@ -300,7 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { "time": 6.75, "lane": "right" }
     ];
     noteSequenceTextarea.value = JSON.stringify(defaultBeatmap, null, 2);
-    
+
+    window.game = new RhythmBlade();
     // Apply the initial settings to start the game immediately
     window.game.applySettings();
 });
