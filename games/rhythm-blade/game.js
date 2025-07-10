@@ -155,7 +155,7 @@ class RhythmBlade extends SensorGameSDK {
         console.log('Sensor Data:', gameInput); // Log sensor data
         if (!this.gameState.isPlaying) return;
 
-        const swingThreshold = 100; // 스윙 인식 기준을 높여 둔감하게 만듦
+        const swingThreshold = 200; // 스윙 인식 기준을 높여 둔감하게 만듦
 
         // Use rotation speed and direction from the SDK's processed gameInput
         const speed = gameInput.rotation.speed;
