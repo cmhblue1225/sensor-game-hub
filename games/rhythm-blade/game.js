@@ -154,16 +154,21 @@ class RhythmBlade extends SensorGameSDK {
         console.log('Sensor Data:', gameInput); // Log sensor data
         if (!this.gameState.isPlaying) return;
 
-        const swingThreshold = 80; // Increased sensitivity for 3D
+        const swingThreshold = 40; // Adjusted swing detection sensitivity
 
-        // Left Swing (Negative rotation on Z-axis)
-        if (gameInput.rotation && gameInput.rotation.z < -swingThreshold) {
-            this.triggerSwing('left');
-        }
+        // Use rotation speed and direction from the SDK's processed gameInput
+        const speed = gameInput.rotation.speed;
+        const direction = gameInput.rotation.direction * (180 / Math.PI); // Convert radians to degrees
 
-        // Right Swing (Positive rotation on Z-axis)
-        if (gameInput.rotation && gameInput.rotation.z > swingThreshold) {
-            this.triggerSwing('right');
+        if (speed > swingThreshold) {
+            // Left-to-Right swing (approximated by direction)
+            if (direction > -90 && direction < 90) {
+                this.triggerSwing('right');
+            }
+            // Right-to-Left swing
+            else {
+                this.triggerSwing('left');
+            }
         }
     }
 
