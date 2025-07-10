@@ -1,0 +1,21 @@
+{
+    "id": "rhythm-blade",
+    "name": "Rhythm Blade",
+    "description": "모바일 센서를 사용하여 다가오는 노트를 베는 VR 스타일의 리듬 게임입니다.",
+    "author": "Gemini",
+    "version": "1.0.0",
+    "category": "rhythm",
+    "difficulty": "medium",
+    "icon": "⚔️",
+    "sensorTypes": ["gyroscope", "accelerometer"],
+    "features": ["singleplayer", "sensor-control", "session-based", "beatmap-editor"],
+    "requirements": {
+        "sensors": ["gyroscope", "accelerometer"],
+        "permissions": ["devicemotion", "deviceorientation"]
+    },
+    "settings": {
+        "autoMatch": true,
+        "maxPlayers": 1,
+        "sessionTimeout": 300000
+    }
+}
