@@ -14,7 +14,7 @@ class RhythmBlade extends SensorGameSDK {
                 gyroscope: 2.0,
                 accelerometer: 1.0,
             },
-            smoothingFactor: 0.5,
+            smoothingFactor: 2, // Adjusted to a valid range (1-10)
             deadzone: 0.2
         });
 
